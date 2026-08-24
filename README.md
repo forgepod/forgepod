@@ -144,6 +144,11 @@ FORGEPOD_API_KEY=...
 
 Keys are never written to the database. They belong to whoever runs the install.
 
+`FORGEPOD_DEFAULT_MODEL` is what an agent gets when neither its template nor the operator
+named one. It defaults to `claude-opus-5`, which is right talking to Anthropic and wrong
+on a gateway that serves no Anthropic ids: without it, installing a template there
+produces agents that all fail on their first run naming a model the gateway never had.
+
 The seam is `src/agents/provider.ts` and it stays thin on purpose: the agent loop never
 learns a provider's message format, and a provider never learns what a run is. An
 assistant turn travels back to its own provider untouched, which is what keeps a model's
