@@ -3,7 +3,7 @@ import { Kysely } from "kysely";
 import { BunSqliteDialect } from "../db/bun-sqlite";
 import { migrate } from "../db/migrate";
 import type { Schema } from "../db/schema";
-import { DEFAULT_MODEL, createAgent, loadAgent, publishVersion } from "./store";
+import { createAgent, defaultModel, loadAgent, publishVersion } from "./store";
 
 const at = "2026-08-24T10:00:00.000Z";
 
@@ -121,10 +121,27 @@ test("a new agent arrives with its first version already published", async () =>
 
   expect(agent?.slug).toBe("keeper");
   expect(agent?.version).toBe(1);
-  expect(agent?.model).toBe(DEFAULT_MODEL);
+  expect(agent?.model).toBe(defaultModel());
   expect(agent?.tools).toEqual([]);
 
   await db.destroy();
+});
+
+test("an install pointed at a gateway can say which model a new agent gets", async () => {
+  const db = await freshDb();
+  const before = process.env.FORGEPOD_DEFAULT_MODEL;
+  process.env.FORGEPOD_DEFAULT_MODEL = "some-gateway-model";
+
+  try {
+    // Read at call time, not frozen at import: setting it after this module loaded is
+    // exactly what an operator does, since they edit .env and restart.
+    const id = await createAgent(db, { name: "Keeper" }, at);
+    expect((await loadAgent(db, id))?.model).toBe("some-gateway-model");
+  } finally {
+    if (before === undefined) delete process.env.FORGEPOD_DEFAULT_MODEL;
+    else process.env.FORGEPOD_DEFAULT_MODEL = before;
+    await db.destroy();
+  }
 });
 
 test("a version published inside a caller's transaction rolls back with it", async () => {
@@ -141,7 +158,7 @@ test("a version published inside a caller's transaction rolls back with it", asy
   // The rollback has to reach the new version and the pointer that was moved to it.
   const agent = await loadAgent(db, id);
   expect(agent?.version).toBe(1);
-  expect(agent?.model).toBe(DEFAULT_MODEL);
+  expect(agent?.model).toBe(defaultModel());
   expect(agent?.systemPrompt).toBe("");
 
   await db.destroy();

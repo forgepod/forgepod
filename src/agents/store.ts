@@ -40,7 +40,13 @@ export type AgentDetail = {
   tools: BoundTool[];
 };
 
-export const DEFAULT_MODEL = "claude-opus-5";
+/**
+ * What an agent gets when neither the template nor the operator named a model. Read at
+ * call time rather than frozen at import, because the install that sets it is the same
+ * one that chooses a provider: an install pointed at a gateway has no Anthropic model
+ * ids, and every agent it creates would otherwise be born on one it cannot call.
+ */
+export const defaultModel = () => process.env.FORGEPOD_DEFAULT_MODEL?.trim() || "claude-opus-5";
 
 const slugify = (name: string) =>
   name
@@ -152,7 +158,7 @@ export async function createAgent(
       trx,
       agentId,
       {
-        model: input.model ?? DEFAULT_MODEL,
+        model: input.model ?? defaultModel(),
         systemPrompt: input.systemPrompt ?? "",
         tools: [],
       },

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { Kysely } from "kysely";
-import { DEFAULT_MODEL, listAgents, loadAgent } from "../agents/store";
+import { defaultModel, listAgents, loadAgent } from "../agents/store";
 import { BunSqliteDialect } from "../db/bun-sqlite";
 import { migrate } from "../db/migrate";
 import type { Schema } from "../db/schema";
@@ -81,7 +81,7 @@ test("a clean install writes every agent with its version, model, prompt and bin
   const plain = await loadAgent(db, ids[1]!);
   expect(plain?.slug).toBe("load-notes");
   // No model in the manifest, so core's default applies rather than a pinned one.
-  expect(plain?.model).toBe(DEFAULT_MODEL);
+  expect(plain?.model).toBe(defaultModel());
   expect(plain?.tools).toEqual([]);
 
   await db.destroy();

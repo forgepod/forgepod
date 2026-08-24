@@ -1,5 +1,5 @@
 import type { Kysely } from "kysely";
-import { DEFAULT_MODEL, publishVersion } from "../agents/store";
+import { defaultModel, publishVersion } from "../agents/store";
 import type { Schema } from "../db/schema";
 import { composePrompt, type TemplateManifest } from "./manifest";
 
@@ -110,7 +110,7 @@ export async function installTemplate(
         trx,
         id,
         {
-          model: agent.model ?? DEFAULT_MODEL,
+          model: agent.model ?? defaultModel(),
           systemPrompt: composePrompt(agent),
           tools: agent.tools.map((t) => ({ pluginName: t.plugin, toolName: t.tool })),
         },
