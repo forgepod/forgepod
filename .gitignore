@@ -7,3 +7,4 @@ txtx.txt
 docs/
 .next/
 *.tsbuildinfo
+plugins/*/state/

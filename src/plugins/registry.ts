@@ -36,9 +36,9 @@ export async function installedPlugins(root = pluginRoot()): Promise<Installed[]
   return found.filter((x) => x !== null).sort((a, b) => a.dir.localeCompare(b.dir));
 }
 
-export function launchLine(manifest: PluginManifest): string {
+export function launchLine(manifest: PluginManifest, dir?: string): string {
   if (manifest.transport === "http") return manifest.url;
-  const { command, args } = resolveLaunch(manifest);
+  const { command, args } = resolveLaunch(manifest, { cwd: dir });
   return [command, ...args].join(" ");
 }
 
@@ -47,7 +47,7 @@ export function launchLine(manifest: PluginManifest): string {
 // renders is the stored result of the last one.
 export async function inspect(entry: Installed): Promise<Inspection> {
   if (!entry.manifest) return entry;
-  const launch = launchLine(entry.manifest);
+  const launch = launchLine(entry.manifest, entry.dir);
   const started = performance.now();
 
   try {
