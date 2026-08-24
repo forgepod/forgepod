@@ -3,7 +3,7 @@ import { Kysely } from "kysely";
 import { BunSqliteDialect } from "../db/bun-sqlite";
 import { migrate } from "../db/migrate";
 import type { Schema } from "../db/schema";
-import { createAgent, loadAgent, publishVersion } from "./store";
+import { DEFAULT_MODEL, createAgent, loadAgent, publishVersion } from "./store";
 
 const at = "2026-08-24T10:00:00.000Z";
 
@@ -102,6 +102,60 @@ test("a plugin removed from disk leaves every one of its bindings unavailable", 
 
   const agent = await loadAgent(db, id);
   expect(agent?.tools.map((t) => t.available)).toEqual([false, false]);
+
+  await db.destroy();
+});
+
+/** No plugins scanned, so nothing here is about bindings. */
+async function freshDb() {
+  const db = new Kysely<Schema>({ dialect: new BunSqliteDialect(":memory:") });
+  await migrate(db);
+  return db;
+}
+
+test("a new agent arrives with its first version already published", async () => {
+  const db = await freshDb();
+
+  const id = await createAgent(db, { name: "Keeper" }, at);
+  const agent = await loadAgent(db, id);
+
+  expect(agent?.slug).toBe("keeper");
+  expect(agent?.version).toBe(1);
+  expect(agent?.model).toBe(DEFAULT_MODEL);
+  expect(agent?.tools).toEqual([]);
+
+  await db.destroy();
+});
+
+test("a version published inside a caller's transaction rolls back with it", async () => {
+  const db = await freshDb();
+  const id = await createAgent(db, { name: "Keeper" }, at);
+
+  await expect(
+    db.transaction().execute(async (trx) => {
+      await publishVersion(trx, id, { model: "other", systemPrompt: "second", tools: [] }, at);
+      throw new Error("the caller failed after publishing");
+    }),
+  ).rejects.toThrow("the caller failed after publishing");
+
+  // The rollback has to reach the new version and the pointer that was moved to it.
+  const agent = await loadAgent(db, id);
+  expect(agent?.version).toBe(1);
+  expect(agent?.model).toBe(DEFAULT_MODEL);
+  expect(agent?.systemPrompt).toBe("");
+
+  await db.destroy();
+});
+
+test("publishing again outside a transaction still increments the version", async () => {
+  const db = await freshDb();
+  const id = await createAgent(db, { name: "Keeper" }, at);
+
+  await publishVersion(db, id, { model: "other", systemPrompt: "second", tools: [] }, at);
+  const agent = await loadAgent(db, id);
+
+  expect(agent?.version).toBe(2);
+  expect(agent?.systemPrompt).toBe("second");
 
   await db.destroy();
 });

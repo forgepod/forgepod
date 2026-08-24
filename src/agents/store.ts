@@ -1,4 +1,4 @@
-import type { Kysely } from "kysely";
+import type { Kysely, Transaction } from "kysely";
 import type { Schema } from "../db/schema";
 import type { RunStep } from "./run";
 
@@ -12,6 +12,13 @@ export type AgentSummary = {
 };
 
 export type BoundToolRef = { pluginName: string; toolName: string };
+
+/**
+ * A connection or an open transaction. Taking this rather than a connection is what lets
+ * one caller write several agents atomically: Kysely refuses a transaction inside a
+ * transaction, so a function that opens its own can never be composed.
+ */
+export type Executor = Kysely<Schema> | Transaction<Schema>;
 
 /**
  * A binding is kept by name and survives a rescan on purpose, so a plugin that is briefly
@@ -127,6 +134,8 @@ export async function createAgent(
 ): Promise<string> {
   const agentId = crypto.randomUUID();
 
+  // One transaction for both, so a process that dies between them cannot leave an agent
+  // with no version, which `listAgents` would inner join into an invisible row.
   await db.transaction().execute(async (trx) => {
     await trx
       .insertInto("agents")
@@ -138,13 +147,18 @@ export async function createAgent(
         published_version_id: null,
       })
       .execute();
-  });
 
-  await publishVersion(db, agentId, {
-    model: input.model ?? DEFAULT_MODEL,
-    systemPrompt: input.systemPrompt ?? "",
-    tools: [],
-  }, now);
+    await publishVersion(
+      trx,
+      agentId,
+      {
+        model: input.model ?? DEFAULT_MODEL,
+        systemPrompt: input.systemPrompt ?? "",
+        tools: [],
+      },
+      now,
+    );
+  });
 
   return agentId;
 }
@@ -152,52 +166,53 @@ export async function createAgent(
 /**
  * Saving is publishing a new version. History comes for free that way, and no run ever
  * has its recorded configuration edited out from under it.
+ *
+ * Runs on whatever executor it is given and opens no transaction of its own, so the
+ * caller decides what is atomic with what.
  */
 export async function publishVersion(
-  db: Kysely<Schema>,
+  exec: Executor,
   agentId: string,
   input: { model: string; systemPrompt: string; tools: BoundToolRef[] },
   now = new Date().toISOString(),
 ): Promise<string> {
   const versionId = crypto.randomUUID();
 
-  await db.transaction().execute(async (trx) => {
-    const previous = await trx
-      .selectFrom("agent_versions")
-      .select("version")
-      .where("agent_id", "=", agentId)
-      .orderBy("version", "desc")
-      .executeTakeFirst();
+  const previous = await exec
+    .selectFrom("agent_versions")
+    .select("version")
+    .where("agent_id", "=", agentId)
+    .orderBy("version", "desc")
+    .executeTakeFirst();
 
-    await trx
-      .insertInto("agent_versions")
+  await exec
+    .insertInto("agent_versions")
+    .values({
+      id: versionId,
+      agent_id: agentId,
+      version: (previous?.version ?? 0) + 1,
+      model: input.model,
+      system_prompt: input.systemPrompt,
+      created_at: now,
+    })
+    .execute();
+
+  for (const tool of input.tools) {
+    await exec
+      .insertInto("agent_tools")
       .values({
-        id: versionId,
-        agent_id: agentId,
-        version: (previous?.version ?? 0) + 1,
-        model: input.model,
-        system_prompt: input.systemPrompt,
-        created_at: now,
+        agent_version_id: versionId,
+        plugin_name: tool.pluginName,
+        tool_name: tool.toolName,
       })
       .execute();
+  }
 
-    for (const tool of input.tools) {
-      await trx
-        .insertInto("agent_tools")
-        .values({
-          agent_version_id: versionId,
-          plugin_name: tool.pluginName,
-          tool_name: tool.toolName,
-        })
-        .execute();
-    }
-
-    await trx
-      .updateTable("agents")
-      .set({ published_version_id: versionId })
-      .where("id", "=", agentId)
-      .execute();
-  });
+  await exec
+    .updateTable("agents")
+    .set({ published_version_id: versionId })
+    .where("id", "=", agentId)
+    .execute();
 
   return versionId;
 }
