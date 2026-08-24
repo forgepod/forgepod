@@ -89,6 +89,32 @@ def beam_reactions(span_m: float, load_kn: float, load_from_left_m: float) -> Re
 For a remote plugin, drop `command` and `image` and set `"transport": "http"` with a
 `url`.
 
+An agent is a system prompt, a model and the tools it may call. The editor at
+`/admin/agents` binds tools by their published signature, and saving publishes a new
+version, so a run always records the exact configuration it executed. The same page
+runs the agent and shows the transcript: what it said, which tool it called with which
+arguments, what came back, and the tokens it cost.
+
+## Models
+
+Two ways to answer, chosen by one switch.
+
+Leave `FORGEPOD_BASE_URL` unset and the install talks to Anthropic directly with
+`ANTHROPIC_API_KEY`. Set it to an OpenAI-compatible gateway and the install talks to
+that instead, with `FORGEPOD_API_KEY`:
+
+```sh
+FORGEPOD_BASE_URL=https://opencode.ai/zen/v1
+FORGEPOD_API_KEY=...
+```
+
+Keys are never written to the database. They belong to whoever runs the install.
+
+The seam is `src/agents/provider.ts` and it stays thin on purpose: the agent loop never
+learns a provider's message format, and a provider never learns what a run is. An
+assistant turn travels back to its own provider untouched, which is what keeps a model's
+internal continuity intact.
+
 ## Database
 
 SQLite by default, in `forgepod.db`, with no database server to install. Point
@@ -116,8 +142,14 @@ which is what `bun --bun next start` in the scripts is for.
 
 ## Not built yet
 
-Everything in the admin past the plugins page, agent storage and versioning, run
-execution and history, usage recording, template installation.
+Template installation, agent assignment, quotas, guardrails, and everything billing.
+Version history is recorded but there is no way to view or roll back to an old version
+yet.
+
+A run answers all at once rather than streaming, so a slow answer looks like a slow page.
+The provider adapters are covered by tests that stub their HTTP, so the request and
+response mapping is checked, but no request has been made to a live provider from this
+repository.
 
 The HTTP transport for remote plugins is written but has never been executed. The
 container path has: the sample plugin has been discovered and called both on the host

@@ -1,6 +1,7 @@
 import { database } from "@/db";
 import { formatParams, formatReturn, type Schema } from "@/plugins/signature";
 import { loadPlugins, type StoredPlugin, type StoredTool } from "@/plugins/store";
+import { Masthead } from "../../masthead";
 import { rescan } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -26,10 +27,7 @@ export default async function PluginsPage() {
 
   return (
     <main className="sheet">
-      <header className="masthead">
-        <span className="wordmark">ForgePod</span>
-        <span className="crumb">admin / plugins</span>
-      </header>
+      <Masthead here="plugins" />
 
       <div className="summary">
         <h1>Capabilities</h1>

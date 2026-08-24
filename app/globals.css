@@ -266,3 +266,125 @@ code,
 .tally {
   margin: 0.6rem 0 0;
 }
+
+.crumb a {
+  color: var(--ink-muted);
+  text-decoration: none;
+  margin-left: 1rem;
+}
+
+.crumb a:hover,
+.crumb a[aria-current="page"] {
+  color: var(--ink);
+}
+
+.plugin-head a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--steel-200);
+}
+
+.row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 1.2rem 0 0;
+}
+
+.field {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--steel-200);
+  padding: 0.5rem 0.7rem;
+  width: 100%;
+  max-width: 100%;
+  resize: vertical;
+}
+
+.row .field {
+  width: auto;
+  flex: 1 1 16rem;
+}
+
+.field-group {
+  margin: 1.6rem 0 0;
+}
+
+.field-group label,
+.field-group .label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.action-quiet {
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--ink);
+}
+
+.action-quiet:hover {
+  color: var(--steel-050);
+}
+
+.picker {
+  border: 0;
+  border-top: 1px solid var(--steel-200);
+  padding: 0.6rem 0 0;
+  margin: 0 0 0.9rem;
+}
+
+.picker legend {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  padding: 0;
+}
+
+.pick {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.3rem 0;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: inherit;
+  color: inherit;
+  margin: 0;
+}
+
+.pick-body {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.pick-name {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.85rem;
+  color: var(--temper-blue);
+}
+
+.pick-sig {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.74rem;
+  color: var(--ink-muted);
+  overflow-x: auto;
+}
+
+.say {
+  margin: 0;
+  max-width: 62ch;
+}
+
+.sig-error {
+  border-left-color: var(--ember);
+}

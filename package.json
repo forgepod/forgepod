@@ -12,9 +12,11 @@
     "plugin:image": "${FORGEPOD_CONTAINER_RUNTIME:-docker} build -t forgepod/beam-mcp:0.1.0 plugins/beam-mcp"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "kysely": "^0.29.5",
     "next": "^16.3.2",
+    "openai": "^7.5.0",
     "pg": "^8.23.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
