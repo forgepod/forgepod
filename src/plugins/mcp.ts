@@ -47,6 +47,12 @@ export type LaunchOptions = {
    * it.
    */
   cwd?: string;
+  /**
+   * Where the plugin's state lives on the host. Defaults to `state/` inside `cwd`, which
+   * is what an install wants. A test passes its own, so running the suite cannot write
+   * into the data an operator's plugin is keeping.
+   */
+  stateDir?: string;
   /** Defaults to whether the manifest declares an image. */
   container?: boolean;
   /**
@@ -75,6 +81,7 @@ const isContainer = (manifest: StdioManifest, opts: LaunchOptions) =>
   opts.container ?? Boolean(manifest.image);
 
 function hostState(manifest: StdioManifest, opts: LaunchOptions): string {
+  if (opts.stateDir) return resolve(opts.stateDir);
   if (!opts.cwd) {
     throw new Error(`plugin ${manifest.name} keeps state, but was launched with no directory`);
   }

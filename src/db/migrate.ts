@@ -5,6 +5,13 @@ import type { Schema } from "./schema";
 // Replace with versioned migrations before the schema holds anyone else's data.
 export async function migrate(db: Kysely<Schema>): Promise<void> {
   await db.schema
+    .createTable("settings")
+    .ifNotExists()
+    .addColumn("key", "text", (c) => c.primaryKey())
+    .addColumn("value", "text", (c) => c.notNull())
+    .execute();
+
+  await db.schema
     .createTable("plugins")
     .ifNotExists()
     .addColumn("name", "text", (c) => c.primaryKey())

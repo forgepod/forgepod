@@ -76,7 +76,14 @@ export type RunUsageRow = {
   output_tokens: number;
 };
 
+/** One row per install-wide fact. Keyed by name so adding one needs no migration. */
+export type SettingRow = {
+  key: string;
+  value: string;
+};
+
 export type Schema = {
+  settings: SettingRow;
   plugins: PluginRow;
   plugin_tools: PluginToolRow;
   agents: AgentRow;

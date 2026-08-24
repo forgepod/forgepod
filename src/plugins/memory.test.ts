@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { tmpdir } from "node:os";
 import { connect, loadManifest } from "./mcp";
 
 const dir = "plugins/memory-mcp";
@@ -6,11 +7,19 @@ const manifest = await loadManifest(dir);
 if (manifest.transport !== "stdio") throw new Error("expected a stdio manifest");
 
 /** Runs on the host, so the check does not need a container runtime to be answering. */
-const open = (slug: string) =>
+// Its own directory, so the suite never touches what an install has stored.
+const stateDir = `${tmpdir()}/forgepod-memory-test-${crypto.randomUUID()}`;
+
+const open = (slug: string, install = "install-a") =>
   connect(manifest, {
     cwd: dir,
+    stateDir,
     container: false,
-    identity: { FORGEPOD_AGENT_SLUG: slug, FORGEPOD_RUN_ID: `run-${slug}` },
+    identity: {
+      FORGEPOD_INSTALL_ID: install,
+      FORGEPOD_AGENT_SLUG: slug,
+      FORGEPOD_RUN_ID: `run-${slug}`,
+    },
   });
 
 // callTool's return is a union whose legacy branch has no structuredContent, so the
@@ -108,5 +117,38 @@ test("a recall is a question, so one shared word is enough to find a memory", as
       await client.callTool({ name: "forget", arguments: { id: memory.id } });
     }
     await client.close();
+  }
+}, 30_000);
+
+test("two installs of one template do not share what its agent remembers", async () => {
+  const secret = `trestle${crypto.randomUUID().replaceAll("-", "")}`;
+  // The same slug on purpose. A slug is authored in the template, so every install of it
+  // has this one, and the install id is the only thing telling these two apart.
+  const here = await open("contract-reviewer", "install-a");
+  const elsewhere = await open("contract-reviewer", "install-b");
+
+  try {
+    const stored = structured(
+      await here.callTool({ name: "remember", arguments: { text: `the safe word is ${secret}` } }),
+    );
+
+    const mine = structured(await here.callTool({ name: "recall", arguments: { query: secret } }));
+    expect(mine.memories?.[0]?.text).toContain(secret);
+
+    const theirs = structured(
+      await elsewhere.callTool({ name: "recall", arguments: { query: secret } }),
+    );
+    expect(theirs.memories).toEqual([]);
+
+    const theft = structured(
+      await elsewhere.callTool({ name: "forget", arguments: { id: stored.id } }),
+    );
+    expect(theft.forgotten).toBe(false);
+
+    const gone = structured(await here.callTool({ name: "forget", arguments: { id: stored.id } }));
+    expect(gone.forgotten).toBe(true);
+  } finally {
+    await here.close();
+    await elsewhere.close();
   }
 }, 30_000);

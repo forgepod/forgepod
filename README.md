@@ -90,11 +90,17 @@ Plugin environment variables are passed by name, never by value. The value reach
 container through the process environment, so a secret never appears in an argv that
 other processes can read.
 
-A run also tells the plugin who is calling: `FORGEPOD_AGENT_SLUG`, `FORGEPOD_AGENT_ID`
-and `FORGEPOD_RUN_ID`. A plugin that keeps state should key on the slug, which is
-authored in the template and identical on every install, while both ids are generated
-per install and per run. The core sets these after the manifest's own `env`, so a plugin
-cannot name itself a different agent.
+A run also tells the plugin who is calling: `FORGEPOD_INSTALL_ID`, `FORGEPOD_AGENT_SLUG`,
+`FORGEPOD_AGENT_ID` and `FORGEPOD_RUN_ID`, widest to narrowest. A plugin that keeps state
+keys on the install and the slug together. The slug is authored in the template and
+survives a reinstall where the agent id does not, but it is the same string on every
+install of that template, so the install has to be part of the key before two of them
+share one plugin. The core sets these after the manifest's own `env`, so a plugin cannot
+name itself a different agent.
+
+The install id is generated once and kept in the database, so it identifies the install
+rather than the machine. `FORGEPOD_INSTALL_ID` overrides it, which is how a host that
+already knows who its tenants are names them itself.
 
 A plugin that keeps something between runs declares `"state": true`. Core sets
 `FORGEPOD_STATE_DIR` to a directory that outlives the run and the plugin opens that path,
