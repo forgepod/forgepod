@@ -19,7 +19,7 @@ const structured = (result: unknown) =>
   (result as { structuredContent?: unknown }).structuredContent as {
     id?: number;
     forgotten?: boolean;
-    memories?: { text: string }[];
+    memories?: { id: number; text: string }[];
   };
 
 test("a memory belongs to the agent that stored it, and to no other", async () => {
@@ -74,6 +74,39 @@ test("a query is treated as words, not as FTS5 syntax", async () => {
       expect(result.isError ?? false).toBe(false);
     }
   } finally {
+    await client.close();
+  }
+}, 30_000);
+
+test("a recall is a question, so one shared word is enough to find a memory", async () => {
+  const token = `girder${crypto.randomUUID().replaceAll("-", "")}`;
+  const client = await open("recall-shape");
+
+  try {
+    const stored = [
+      `the standard span is ${token} metres`,
+      "results are always wanted in kilonewtons",
+    ];
+    const ids: number[] = [];
+    for (const text of stored) {
+      ids.push(structured(await client.callTool({ name: "remember", arguments: { text } }))!.id!);
+    }
+
+    // Joining the words with AND instead returns nothing here, which is what shipped
+    // first: a question shares one word with the memory it is looking for, not all of
+    // them.
+    const found = structured(
+      await client.callTool({
+        name: "recall",
+        arguments: { query: "what span do I usually use?" },
+      }),
+    );
+    expect(found.memories?.[0]?.text).toContain(token);
+  } finally {
+    const left = structured(await client.callTool({ name: "recall", arguments: {} })).memories;
+    for (const memory of left ?? []) {
+      await client.callTool({ name: "forget", arguments: { id: memory.id } });
+    }
     await client.close();
   }
 }, 30_000);

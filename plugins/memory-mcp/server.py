@@ -69,12 +69,17 @@ def db() -> sqlite3.Connection:
 
 
 def match_query(query: str) -> str:
-    """Every word as a quoted term, so a query cannot be FTS5 syntax by accident.
+    """Every word as a quoted term, joined by OR.
 
-    An apostrophe or a bare `-` in something a person said is a query error otherwise,
-    and the cost is that FTS operators are not available to the caller.
+    Quoted, because an apostrophe or a bare `-` in something a person said is FTS5 syntax
+    and the query fails. The cost is that FTS operators are not available to the caller.
+
+    OR rather than the default AND, because a recall arrives as a question rather than as
+    search terms. "what span do I usually use" shares one word with "Standard beam span is
+    6 m", and requiring all of them returns nothing every time. Ranking, not the filter,
+    is what puts the best row first.
     """
-    return " ".join('"' + word.replace('"', '""') + '"' for word in query.split())
+    return " OR ".join('"' + word.replace('"', '""') + '"' for word in query.split())
 
 
 @mcp.tool()
