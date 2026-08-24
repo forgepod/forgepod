@@ -253,3 +253,69 @@ test.skipIf(!built)("a streaming run emits deltas before the step they belong to
 
   await db.destroy();
 }, 120_000);
+
+test("a run says which of the agent's bound tools it could not offer", async () => {
+  const db = new Kysely<Schema>({ dialect: new BunSqliteDialect(":memory:") });
+  await migrate(db);
+
+  const agentId = await createAgent(db, { name: "Beam checker" });
+  const versionId = await publishVersion(db, agentId, {
+    model: "claude-opus-5",
+    systemPrompt: "Answer briefly.",
+    tools: [],
+  });
+
+  const { provider } = stubbedProvider([
+    message([{ type: "text", text: "Answered without it." }], "end_turn", [10, 5]),
+  ]);
+
+  const outcome = await runAgent({
+    db,
+    provider,
+    version: { id: versionId, model: "claude-opus-5", systemPrompt: "Answer briefly." },
+    tools: [],
+    unavailable: [{ pluginName: "beam-mcp", toolName: "rectangular_section_modulus" }],
+    input: "anything",
+  });
+
+  // First, so a reader of the run sees it before the answer it shaped.
+  expect(outcome.steps[0]).toEqual({
+    kind: "note",
+    text: "1 bound tool was unavailable and not offered: beam-mcp.rectangular_section_modulus",
+  });
+
+  const kinds = (
+    await db.selectFrom("run_steps").select("kind").orderBy("seq").execute()
+  ).map((s) => s.kind);
+  expect(kinds).toEqual(["note", "text"]);
+
+  await db.destroy();
+});
+
+test("a run with every tool available records no note", async () => {
+  const db = new Kysely<Schema>({ dialect: new BunSqliteDialect(":memory:") });
+  await migrate(db);
+
+  const agentId = await createAgent(db, { name: "Beam checker" });
+  const versionId = await publishVersion(db, agentId, {
+    model: "claude-opus-5",
+    systemPrompt: "Answer briefly.",
+    tools: [],
+  });
+
+  const { provider } = stubbedProvider([
+    message([{ type: "text", text: "Answered." }], "end_turn", [10, 5]),
+  ]);
+
+  const outcome = await runAgent({
+    db,
+    provider,
+    version: { id: versionId, model: "claude-opus-5", systemPrompt: "Answer briefly." },
+    tools: [],
+    input: "anything",
+  });
+
+  expect(outcome.steps.map((s) => s.kind)).toEqual(["text"]);
+
+  await db.destroy();
+});

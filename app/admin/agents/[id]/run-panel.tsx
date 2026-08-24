@@ -47,7 +47,11 @@ export function RunPanel({
           router.refresh();
         } else if (message.kind === "delta") {
           setLive((current) => appendText(current, message.text));
-        } else if (message.kind === "tool_call" || message.kind === "tool_result") {
+        } else if (
+          message.kind === "tool_call" ||
+          message.kind === "tool_result" ||
+          message.kind === "note"
+        ) {
           setLive((current) => [...current, message]);
         }
       }
@@ -108,6 +112,11 @@ export function RunPanel({
               <p className="say" key={index}>
                 {step.text}
                 {running && index === steps.length - 1 ? <span className="cursor" /> : null}
+              </p>
+            ) : step.kind === "note" ? (
+              // Written by core, not by the model, so it must not read like an answer.
+              <p className="hint" key={index}>
+                {step.text}
               </p>
             ) : step.kind === "tool_call" ? (
               <pre className="sig" key={index}>

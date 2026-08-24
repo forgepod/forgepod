@@ -8,12 +8,14 @@ export type StreamEvent =
   | { kind: "text"; text: string }
   | { kind: "tool_call"; tool: string; input: unknown }
   | { kind: "tool_result"; tool: string; output: unknown; isError: boolean }
+  | { kind: "note"; text: string }
   | { kind: "done"; runId: string | null; error: string | null };
 
 export type LiveStep =
   | { kind: "text"; text: string }
   | { kind: "tool_call"; tool: string; input: unknown }
-  | { kind: "tool_result"; tool: string; output: unknown; isError: boolean };
+  | { kind: "tool_result"; tool: string; output: unknown; isError: boolean }
+  | { kind: "note"; text: string };
 
 export async function* readEvents(
   body: ReadableStream<Uint8Array>,

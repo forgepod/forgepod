@@ -3,6 +3,7 @@ import type { Kysely } from "kysely";
 import type { Schema } from "../db/schema";
 import { connect, PluginManifest } from "../plugins/mcp";
 import type { Exchange, Provider, ToolOutcome } from "./provider";
+import type { BoundToolRef } from "./store";
 
 export type RunnableTool = {
   apiName: string;
@@ -16,7 +17,9 @@ export type RunnableTool = {
 export type RunStep =
   | { kind: "text"; text: string }
   | { kind: "tool_call"; tool: string; input: unknown }
-  | { kind: "tool_result"; tool: string; output: unknown; isError: boolean };
+  | { kind: "tool_result"; tool: string; output: unknown; isError: boolean }
+  /** Something the run needs to admit about itself, written by core rather than the model. */
+  | { kind: "note"; text: string };
 
 /** A delta is live only. The recorded step for the same text follows it. */
 export type RunEvent = RunStep | { kind: "delta"; text: string };
@@ -82,6 +85,12 @@ export async function runAgent(args: {
   provider: Provider;
   version: { id: string; model: string; systemPrompt: string };
   tools: RunnableTool[];
+  /**
+   * Bindings the agent declares that no installed plugin publishes any more. They cannot
+   * be called, so the run records them instead: a run read back later has to show that it
+   * answered with fewer tools than the agent was configured with.
+   */
+  unavailable?: BoundToolRef[];
   input: string;
   maxTurns?: number;
   now?: () => string;
@@ -135,6 +144,14 @@ export async function runAgent(args: {
     open.set(tool.pluginName, opened);
     return opened;
   };
+
+  const unavailable = args.unavailable ?? [];
+  if (unavailable.length > 0) {
+    const named = unavailable.map((t) => `${t.pluginName}.${t.toolName}`).join(", ");
+    const count =
+      unavailable.length === 1 ? "1 bound tool was" : `${unavailable.length} bound tools were`;
+    await record({ kind: "note", text: `${count} unavailable and not offered: ${named}` });
+  }
 
   try {
     for (let turn = 0; ; turn++) {
