@@ -82,6 +82,12 @@ Plugin environment variables are passed by name, never by value. The value reach
 container through the process environment, so a secret never appears in an argv that
 other processes can read.
 
+A run also tells the plugin who is calling: `FORGEPOD_AGENT_SLUG`, `FORGEPOD_AGENT_ID`
+and `FORGEPOD_RUN_ID`. A plugin that keeps state should key on the slug, which is
+authored in the template and identical on every install, while both ids are generated
+per install and per run. The core sets these after the manifest's own `env`, so a plugin
+cannot name itself a different agent.
+
 Give every tool a typed return. A bare `dict` publishes no output schema, and the core
 then gets a JSON string to re-parse instead of validated data:
 

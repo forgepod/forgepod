@@ -27,7 +27,13 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
         const outcome = await runAgent({
           db,
           provider: providerFromEnv(),
-          version: { id: agent.versionId, model: agent.model, systemPrompt: agent.systemPrompt },
+          version: {
+            id: agent.versionId,
+            agentId: agent.id,
+            slug: agent.slug,
+            model: agent.model,
+            systemPrompt: agent.systemPrompt,
+          },
           tools: await runnableTools(db, agent.versionId),
           unavailable: agent.tools.filter((t) => !t.available),
           input: input ?? "",

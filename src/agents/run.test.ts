@@ -108,7 +108,13 @@ test.skipIf(!built)(
     const outcome = await runAgent({
       db,
       provider,
-      version: { id: versionId, model: "claude-opus-5", systemPrompt: "Answer briefly." },
+      version: {
+        id: versionId,
+        agentId,
+        slug: "beam-checker",
+        model: "claude-opus-5",
+        systemPrompt: "Answer briefly.",
+      },
       tools,
       input: "6 m span, 10 kN at 2 m. What does the left support carry?",
     });
@@ -178,7 +184,13 @@ test.skipIf(!built)("a tool that throws is reported back rather than ending the 
   const outcome = await runAgent({
     db,
     provider,
-    version: { id: versionId, model: "claude-opus-5", systemPrompt: "" },
+    version: {
+      id: versionId,
+      agentId,
+      slug: "beam-checker",
+      model: "claude-opus-5",
+      systemPrompt: "",
+    },
     tools: await runnableTools(db, versionId),
     input: "negative span",
   });
@@ -238,7 +250,13 @@ test.skipIf(!built)("a streaming run emits deltas before the step they belong to
   const outcome = await runAgent({
     db,
     provider,
-    version: { id: versionId, model: "m", systemPrompt: "" },
+    version: {
+      id: versionId,
+      agentId,
+      slug: "beam-checker",
+      model: "m",
+      systemPrompt: "",
+    },
     tools: await runnableTools(db, versionId),
     input: "6 m span",
     onEvent: (event) => seen.push(event.kind === "delta" ? `delta:${event.text}` : event.kind),
@@ -280,7 +298,13 @@ test("a run says which of the agent's bound tools it could not offer", async () 
   const outcome = await runAgent({
     db,
     provider,
-    version: { id: versionId, model: "claude-opus-5", systemPrompt: "Answer briefly." },
+    version: {
+      id: versionId,
+      agentId,
+      slug: "beam-checker",
+      model: "claude-opus-5",
+      systemPrompt: "Answer briefly.",
+    },
     tools: [],
     unavailable: [{ pluginName: "beam-mcp", toolName: "rectangular_section_modulus" }],
     input: "anything",
@@ -318,7 +342,13 @@ test("a run with every tool available records no note", async () => {
   const outcome = await runAgent({
     db,
     provider,
-    version: { id: versionId, model: "claude-opus-5", systemPrompt: "Answer briefly." },
+    version: {
+      id: versionId,
+      agentId,
+      slug: "beam-checker",
+      model: "claude-opus-5",
+      systemPrompt: "Answer briefly.",
+    },
     tools: [],
     input: "anything",
   });

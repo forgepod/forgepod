@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { connect, defaultRuntime, loadManifest, resolveLaunch } from "./mcp";
+import { connect, defaultRuntime, launchEnv, loadManifest, resolveLaunch } from "./mcp";
 
 const dir = "plugins/beam-mcp";
 const image = "forgepod/beam-mcp:0.1.0";
@@ -45,6 +45,31 @@ test("a stdio launch becomes a container launch only when an image is declared",
 
 test("the container runtime is swappable, since a server may only have podman", () => {
   expect(resolveLaunch(manifest, { container: true, runtime: "podman" }).command).toBe("podman");
+});
+
+test("a plugin is told which agent and run is calling it, and cannot claim otherwise", () => {
+  const identity = { FORGEPOD_AGENT_SLUG: "beam-checker", FORGEPOD_RUN_ID: "run-1" };
+  const declared = { ...manifest, env: { API_KEY: "x", FORGEPOD_AGENT_SLUG: "someone-else" } };
+
+  // Argv carries names only, once each, so the value travels in the environment.
+  expect(resolveLaunch(declared, { container: true, runtime: "docker", identity }).args).toEqual([
+    "run",
+    "--rm",
+    "-i",
+    "-e",
+    "API_KEY",
+    "-e",
+    "FORGEPOD_AGENT_SLUG",
+    "-e",
+    "FORGEPOD_RUN_ID",
+    image,
+  ]);
+
+  expect(launchEnv(declared, { identity })).toMatchObject({
+    API_KEY: "x",
+    FORGEPOD_AGENT_SLUG: "beam-checker",
+    FORGEPOD_RUN_ID: "run-1",
+  });
 });
 
 test("core discovers and calls a Python plugin's tools with no Python in core", async () => {
