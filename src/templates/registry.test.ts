@@ -40,3 +40,21 @@ test("a directory without a template.json is skipped, a broken one is reported",
 test("a missing root is empty rather than an error", async () => {
   expect(await availableTemplates("/no/such/directory")).toEqual([]);
 });
+
+test("every shipped template parses, and one of them binds tools", async () => {
+  const found = await availableTemplates("templates");
+
+  expect(found.map((f) => f.manifest?.name)).toEqual([
+    "code-review",
+    "legal-drafting",
+    "structural-beam",
+  ]);
+  expect(found.map((f) => f.error)).toEqual([undefined, undefined, undefined]);
+
+  const bound = found.flatMap((f) => f.manifest?.agents ?? []).filter((a) => a.tools.length > 0);
+  expect(bound).toHaveLength(1);
+  expect(bound[0]?.tools.map((t) => `${t.plugin}.${t.tool}`)).toEqual([
+    "beam-mcp.beam_reactions",
+    "beam-mcp.rectangular_section_modulus",
+  ]);
+});
