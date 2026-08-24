@@ -1,5 +1,12 @@
 import { expect, test } from "bun:test";
-import { connect, defaultRuntime, launchEnv, loadManifest, resolveLaunch } from "./mcp";
+import {
+  CONTAINER_STATE,
+  connect,
+  defaultRuntime,
+  launchEnv,
+  loadManifest,
+  resolveLaunch,
+} from "./mcp";
 
 const dir = "plugins/beam-mcp";
 const image = "forgepod/beam-mcp:0.1.0";
@@ -107,3 +114,35 @@ async function expectBeamTools(client: Awaited<ReturnType<typeof connect>>) {
     await client.close();
   }
 }
+
+test("a plugin that keeps state is given a directory that outlives the run", () => {
+  const stateful = { ...manifest, state: true };
+  const opts = { container: true, runtime: "docker", cwd: "plugins/memory-mcp" };
+  const host = `${process.cwd()}/plugins/memory-mcp/state`;
+
+  expect(resolveLaunch(stateful, opts).args).toEqual([
+    "run",
+    "--rm",
+    "-i",
+    "-e",
+    "FORGEPOD_STATE_DIR",
+    "-v",
+    `${host}:${CONTAINER_STATE}`,
+    image,
+  ]);
+
+  // The plugin opens one path either way, so the same code runs on the host and in a
+  // container. Only the value differs.
+  expect(launchEnv(stateful, opts).FORGEPOD_STATE_DIR).toBe(CONTAINER_STATE);
+  expect(launchEnv(stateful, { ...opts, container: false }).FORGEPOD_STATE_DIR).toBe(host);
+
+  // Silently writing into the process's working directory would put one plugin's state
+  // wherever core happened to be started from.
+  expect(() => resolveLaunch(stateful, { container: true })).toThrow(/launched with no directory/);
+});
+
+test("a stateless plugin gets no mount and no state variable", () => {
+  const args = resolveLaunch(manifest, { container: true, cwd: dir }).args;
+  expect(args).not.toContain("-v");
+  expect(launchEnv(manifest, { cwd: dir }).FORGEPOD_STATE_DIR).toBeUndefined();
+});

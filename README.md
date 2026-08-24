@@ -94,6 +94,13 @@ authored in the template and identical on every install, while both ids are gene
 per install and per run. The core sets these after the manifest's own `env`, so a plugin
 cannot name itself a different agent.
 
+A plugin that keeps something between runs declares `"state": true`. Core sets
+`FORGEPOD_STATE_DIR` to a directory that outlives the run and the plugin opens that path,
+never learning whether it was a mount. In a container it is `/state`, mounted from a
+`state/` directory beside the plugin on the host. Running on the host it is that same
+directory directly. Without the flag a container starts empty every run, since it is
+launched with `--rm` and closed when the run ends.
+
 Give every tool a typed return. A bare `dict` publishes no output schema, and the core
 then gets a JSON string to re-parse instead of validated data:
 

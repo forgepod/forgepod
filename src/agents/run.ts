@@ -12,6 +12,8 @@ export type RunnableTool = {
   description: string | null;
   inputSchema: unknown;
   manifest: PluginManifest;
+  /** Where the plugin is installed, which a plugin that keeps state is launched with. */
+  sourceDir: string;
 };
 
 export type RunStep =
@@ -59,6 +61,7 @@ export async function runnableTools(
       "plugin_tools.description",
       "plugin_tools.input_schema",
       "plugins.manifest",
+      "plugins.source_dir",
     ])
     .where("agent_tools.agent_version_id", "=", agentVersionId)
     .orderBy("agent_tools.plugin_name")
@@ -72,6 +75,7 @@ export async function runnableTools(
     description: row.description,
     inputSchema: JSON.parse(row.input_schema),
     manifest: PluginManifest.parse(JSON.parse(row.manifest)),
+    sourceDir: row.source_dir,
   }));
 }
 
@@ -151,7 +155,7 @@ export async function runAgent(args: {
   const clientFor = async (tool: RunnableTool): Promise<Client> => {
     const existing = open.get(tool.pluginName);
     if (existing) return existing;
-    const opened = await connect(tool.manifest, { identity });
+    const opened = await connect(tool.manifest, { identity, cwd: tool.sourceDir });
     open.set(tool.pluginName, opened);
     return opened;
   };
