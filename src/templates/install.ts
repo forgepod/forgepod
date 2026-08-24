@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 import { DEFAULT_MODEL, publishVersion } from "../agents/store";
 import type { Schema } from "../db/schema";
-import type { TemplateManifest } from "./manifest";
+import { composePrompt, type TemplateManifest } from "./manifest";
 
 export type Problem =
   | { kind: "missing-plugin"; plugin: string }
@@ -111,7 +111,7 @@ export async function installTemplate(
         id,
         {
           model: agent.model ?? DEFAULT_MODEL,
-          systemPrompt: agent.systemPrompt,
+          systemPrompt: composePrompt(agent),
           tools: agent.tools.map((t) => ({ pluginName: t.plugin, toolName: t.tool })),
         },
         now,

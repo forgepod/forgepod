@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { TemplateManifest } from "./manifest";
+import { TemplateManifest, composePrompt, loadTemplate } from "./manifest";
 
 const agent = {
   slug: "contract-reviewer",
@@ -62,4 +62,48 @@ test("an empty system prompt is rejected", () => {
   expect(() =>
     TemplateManifest.parse({ ...minimal, agents: [{ ...agent, systemPrompt: "" }] }),
   ).toThrow();
+});
+
+test("named sections join in a fixed order, and only the ones present", () => {
+  const parsed = TemplateManifest.parse({
+    ...minimal,
+    agents: [
+      {
+        slug: "contract-reviewer",
+        name: "Contract Reviewer",
+        // Written out of order on purpose: what an author types is not the order the
+        // agent reads.
+        outputFormat: "One line per finding.",
+        persona: "You review contracts.",
+        guardrails: "Not legal advice.",
+      },
+    ],
+  });
+
+  expect(composePrompt(parsed.agents[0]!)).toBe(
+    "You review contracts.\n\nNot legal advice.\n\nOne line per finding.",
+  );
+});
+
+test("a systemPrompt is passed through untouched", () => {
+  const parsed = TemplateManifest.parse(minimal);
+  expect(composePrompt(parsed.agents[0]!)).toBe("Read it.");
+});
+
+test("an agent gives either a systemPrompt or sections, and needs one of them", () => {
+  const both = { ...agent, persona: "You review contracts." };
+  expect(() => TemplateManifest.parse({ ...minimal, agents: [both] })).toThrow(/not both/);
+
+  const neither = { slug: "contract-reviewer", name: "Contract Reviewer" };
+  expect(() => TemplateManifest.parse({ ...minimal, agents: [neither] })).toThrow(
+    /needs systemPrompt/,
+  );
+});
+
+test("the shipped templates parse, in both prompt shapes", async () => {
+  const sections = await loadTemplate("templates/legal-drafting");
+  expect(composePrompt(sections.agents[0]!)).toStartWith("You review contract text");
+
+  const blob = await loadTemplate("templates/code-review");
+  expect(composePrompt(blob.agents[0]!)).toStartWith("You review a diff");
 });
