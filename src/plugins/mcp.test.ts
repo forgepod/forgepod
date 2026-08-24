@@ -1,29 +1,59 @@
 import { expect, test } from "bun:test";
-import { connect, loadManifest, resolveLaunch } from "./mcp";
+import { connect, defaultRuntime, loadManifest, resolveLaunch } from "./mcp";
 
 const dir = "plugins/beam-mcp";
+const image = "forgepod/beam-mcp:0.1.0";
+const runtime = defaultRuntime();
 
-test("a stdio launch becomes a docker launch only when an image is declared", async () => {
-  const manifest = await loadManifest(dir);
-  if (manifest.transport !== "stdio") throw new Error("expected a stdio manifest");
+// Loaded once so the launch tests and the container test agree on what is declared.
+const manifest = await loadManifest(dir);
+if (manifest.transport !== "stdio") throw new Error("expected a stdio manifest");
 
-  expect(resolveLaunch(manifest, false)).toEqual({
+async function imageIsBuilt(): Promise<boolean> {
+  try {
+    const probe = Bun.spawn([runtime, "image", "inspect", image], {
+      stdout: "ignore",
+      stderr: "ignore",
+    });
+    return (await probe.exited) === 0;
+  } catch {
+    return false;
+  }
+}
+
+const built = await imageIsBuilt();
+if (!built) {
+  console.warn(`skipping the container test: ${runtime} has no ${image}, run \`bun run plugin:image\``);
+}
+
+test("a stdio launch becomes a container launch only when an image is declared", () => {
+  expect(resolveLaunch(manifest, { container: false })).toEqual({
     command: ".venv/bin/python",
     args: ["server.py"],
   });
-  expect(resolveLaunch(manifest, true)).toEqual({
+  expect(resolveLaunch(manifest, { container: true, runtime: "docker" })).toEqual({
     command: "docker",
-    args: ["run", "--rm", "-i", "forgepod/beam-mcp:0.1.0"],
+    args: ["run", "--rm", "-i", image],
   });
-  expect(() => resolveLaunch({ ...manifest, image: undefined }, true)).toThrow();
+  expect(() => resolveLaunch({ ...manifest, image: undefined }, { container: true })).toThrow();
+});
+
+test("the container runtime is swappable, since a server may only have podman", () => {
+  expect(resolveLaunch(manifest, { container: true, runtime: "podman" }).command).toBe("podman");
 });
 
 test("core discovers and calls a Python plugin's tools with no Python in core", async () => {
   if (!(await Bun.file(`${dir}/.venv/bin/python`).exists())) {
     throw new Error("plugin venv missing, run: bun run plugin:setup");
   }
+  await expectBeamTools(await connect(manifest, { cwd: dir, container: false }));
+}, 30_000);
 
-  const client = await connect(await loadManifest(dir), { cwd: dir, useContainer: false });
+test.skipIf(!built)("the same plugin behaves identically inside a container", async () => {
+  await expectBeamTools(await connect(manifest, { container: true }));
+}, 60_000);
+
+async function expectBeamTools(client: Awaited<ReturnType<typeof connect>>) {
   try {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
@@ -46,4 +76,4 @@ test("core discovers and calls a Python plugin's tools with no Python in core", 
   } finally {
     await client.close();
   }
-}, 30_000);
+}

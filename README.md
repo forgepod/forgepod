@@ -27,13 +27,19 @@ plugins.
 calls them. `plugins/beam-mcp` is a sample plugin that carries numpy and scipy, there
 to prove a plugin's dependencies never reach the core.
 
-Needs Bun, and Python 3 for the sample plugin.
+Needs Bun, and Python 3 for the sample plugin. A container runtime is optional and
+only the container test needs it.
 
 ```sh
 bun install
 bun run plugin:setup   # a venv for the sample plugin, one time
+bun run plugin:image   # build the sample plugin's image, one time
 bun test
 ```
+
+The container test skips itself with a message if the image is not built. Set
+`FORGEPOD_CONTAINER_RUNTIME=podman` if that is what you have; the default is `docker`
+and anything with a compatible `run` command works.
 
 ## Writing a plugin
 
@@ -50,10 +56,14 @@ An MCP server and a `plugin.json` beside it:
 }
 ```
 
-With `image` set, the core launches the plugin as `docker run --rm -i <image>`.
+With `image` set, the core launches the plugin as `<runtime> run --rm -i <image>`.
 Without it, the plugin runs on the host, which is only for developing the plugin
 itself. Either way the channel is stdio, so there is no port to allocate and no
 network to configure.
+
+Plugin environment variables are passed by name, never by value. The value reaches the
+container through the process environment, so a secret never appears in an argv that
+other processes can read.
 
 Give every tool a typed return. A bare `dict` publishes no output schema, and the core
 then gets a JSON string to re-parse instead of validated data:
@@ -70,14 +80,16 @@ def beam_reactions(span_m: float, load_kn: float, load_from_left_m: float) -> Re
 ```
 
 For a remote plugin, drop `command` and `image` and set `"transport": "http"` with a
-`url`. That path is written but has never been executed.
+`url`.
 
 ## Not built yet
 
 Admin UI, agent storage and versioning, run execution and history, usage recording,
-template installation. The container launch is assembled and unit tested, but no
-container has actually been started, since Docker was absent from the machine the
-plugin runtime was written on.
+template installation.
+
+The HTTP transport for remote plugins is written but has never been executed. The
+container path has: the sample plugin has been discovered and called both on the host
+and inside a real container, with identical results.
 
 ## License
 

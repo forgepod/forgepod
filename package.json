@@ -5,7 +5,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "plugin:setup": "python3 -m venv plugins/beam-mcp/.venv && plugins/beam-mcp/.venv/bin/pip install -q -r plugins/beam-mcp/requirements.txt"
+    "plugin:setup": "python3 -m venv plugins/beam-mcp/.venv && plugins/beam-mcp/.venv/bin/pip install -q -r plugins/beam-mcp/requirements.txt",
+    "plugin:image": "${FORGEPOD_CONTAINER_RUNTIME:-docker} build -t forgepod/beam-mcp:0.1.0 plugins/beam-mcp"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

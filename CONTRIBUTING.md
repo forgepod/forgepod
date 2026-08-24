@@ -31,13 +31,17 @@ command and nothing else, because stdio makes the container's own streams the ch
 
 ## Setup
 
-Needs Bun, and Python 3 for the sample plugin.
+Needs Bun, and Python 3 for the sample plugin. A container runtime is optional.
 
 ```sh
 bun install
 bun run plugin:setup
+bun run plugin:image   # skip this and the container test skips itself
 bun test
 ```
+
+Set `FORGEPOD_CONTAINER_RUNTIME=podman` if that is what you have. The default is
+`docker`.
 
 ## Before you open a pull request
 
