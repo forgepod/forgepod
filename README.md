@@ -37,6 +37,7 @@ Needs Bun, and Python 3 for the sample plugin. A container runtime is optional a
 only the container test needs it.
 
 ```sh
+cp .env.example .env   # every setting the server reads, with what each one does
 bun install
 bun run plugin:setup   # a venv for the sample plugin, one time
 bun run plugin:image   # build the sample plugin's image, one time
@@ -92,12 +93,15 @@ For a remote plugin, drop `command` and `image` and set `"transport": "http"` wi
 An agent is a system prompt, a model and the tools it may call. The editor at
 `/admin/agents` binds tools by their published signature, and saving publishes a new
 version, so a run always records the exact configuration it executed. The same page
-runs the agent and shows the transcript: what it said, which tool it called with which
-arguments, what came back, and the tokens it cost.
+runs the agent and streams what happens: text as it is written, then the tool it
+reached for, the arguments it passed, and what came back. When the run finishes the
+stored transcript takes over, so the live view is a preview and the record is what was
+written to the database as it went. Closing the tab loses the preview and nothing
+else.
 
 ## Models
 
-Two ways to answer, chosen by one switch.
+Two ways to answer, chosen by one switch. Both stream.
 
 Leave `FORGEPOD_BASE_URL` unset and the install talks to Anthropic directly with
 `ANTHROPIC_API_KEY`. Set it to an OpenAI-compatible gateway and the install talks to
@@ -151,10 +155,9 @@ Template installation, agent assignment, quotas, guardrails, and everything bill
 Version history is recorded but there is no way to view or roll back to an old version
 yet.
 
-A run answers all at once rather than streaming, so a slow answer looks like a slow page.
 The provider adapters are covered by tests that stub their HTTP, so the request and
-response mapping is checked, but no request has been made to a live provider from this
-repository.
+response mapping is checked in both directions, but no request has been made to a live
+provider from this repository.
 
 The HTTP transport for remote plugins is written but has never been executed. The
 container path has: the sample plugin has been discovered and called both on the host

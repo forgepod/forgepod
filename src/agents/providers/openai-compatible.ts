@@ -40,8 +40,11 @@ export function openAICompatibleProvider(options: OpenAICompatibleOptions): Prov
 
   return {
     name: options.name ?? "openai-compatible",
-    async send({ model, system, history, tools }: SendArgs): Promise<Turn> {
-      const completion = await client.chat.completions.create({
+    async send(
+      { model, system, history, tools }: SendArgs,
+      onDelta?: (text: string) => void,
+    ): Promise<Turn> {
+      const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
         model,
         messages: toMessages(system, history),
         // No max token cap is sent: this talks to gateways whose ceilings and parameter
@@ -56,7 +59,11 @@ export function openAICompatibleProvider(options: OpenAICompatibleOptions): Prov
               },
             }))
           : undefined,
-      });
+      };
+
+      const completion = onDelta
+        ? await streamed(client, params, onDelta)
+        : await client.chat.completions.create(params);
 
       const choice = completion.choices[0];
       const message = choice?.message;
@@ -84,6 +91,26 @@ export function openAICompatibleProvider(options: OpenAICompatibleOptions): Prov
       };
     },
   };
+}
+
+/**
+ * The SDK helper accumulates the fragments, which matters for tool calls: arguments
+ * arrive split across deltas and indexed, and reassembling them by hand is the part
+ * that goes subtly wrong.
+ */
+function streamed(
+  client: OpenAI,
+  params: Omit<OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming, "stream">,
+  onDelta: (text: string) => void,
+): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  const stream = client.chat.completions.stream({
+    ...params,
+    // A gateway that ignores this reports no token counts while streaming. One that
+    // rejects it says so plainly, which is better than silence.
+    stream_options: { include_usage: true },
+  });
+  stream.on("content.delta", (event) => onDelta(event.delta));
+  return stream.finalChatCompletion();
 }
 
 function parseArguments(raw: string): unknown {

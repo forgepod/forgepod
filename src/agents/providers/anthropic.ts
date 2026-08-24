@@ -25,8 +25,11 @@ export function anthropicProvider(options: AnthropicOptions = {}): Provider {
 
   return {
     name: "anthropic",
-    async send({ model, system, history, tools }: SendArgs): Promise<Turn> {
-      const response = await client.messages.create({
+    async send(
+      { model, system, history, tools }: SendArgs,
+      onDelta?: (text: string) => void,
+    ): Promise<Turn> {
+      const params: Anthropic.MessageCreateParamsNonStreaming = {
         model,
         max_tokens: 16000,
         thinking: { type: "adaptive" },
@@ -37,7 +40,11 @@ export function anthropicProvider(options: AnthropicOptions = {}): Provider {
           description: tool.description,
           input_schema: tool.inputSchema as Anthropic.Tool["input_schema"],
         })),
-      });
+      };
+
+      const response = onDelta
+        ? await streamed(client, params, onDelta)
+        : await client.messages.create(params);
 
       return {
         text: response.content.filter((b) => b.type === "text").map((b) => b.text),
@@ -55,4 +62,14 @@ export function anthropicProvider(options: AnthropicOptions = {}): Provider {
       };
     },
   };
+}
+
+function streamed(
+  client: Anthropic,
+  params: Anthropic.MessageCreateParamsNonStreaming,
+  onDelta: (text: string) => void,
+): Promise<Anthropic.Message> {
+  const stream = client.messages.stream(params);
+  stream.on("text", (delta) => onDelta(delta));
+  return stream.finalMessage();
 }

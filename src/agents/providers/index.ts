@@ -21,12 +21,16 @@ export function providerFromEnv(env: Record<string, string | undefined> = proces
     return openAICompatibleProvider({ baseURL, apiKey });
   }
 
+  // Checked here rather than left to the SDK. The client constructs without
+  // credentials and only fails at request time, and by then the operator gets the
+  // SDK's wording instead of the two variable names that would fix it. A server has
+  // no CLI login profile to fall back on either.
   const apiKey = env.FORGEPOD_API_KEY?.trim() || env.ANTHROPIC_API_KEY?.trim();
-  try {
-    return anthropicProvider(apiKey ? { apiKey } : {});
-  } catch {
+  if (!apiKey) {
     throw new Error(
-      "No provider configured. Set FORGEPOD_BASE_URL and FORGEPOD_API_KEY for a gateway, or ANTHROPIC_API_KEY for Anthropic.",
+      "No provider configured. Set ANTHROPIC_API_KEY, or set FORGEPOD_BASE_URL and FORGEPOD_API_KEY to use a gateway.",
     );
   }
+
+  return anthropicProvider({ apiKey });
 }

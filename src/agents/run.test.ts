@@ -181,3 +181,75 @@ test.skipIf(!built)("a tool that throws is reported back rather than ending the 
 
   await db.destroy();
 }, 120_000);
+
+test.skipIf(!built)("a streaming run emits deltas before the step they belong to", async () => {
+  const db = new Kysely<Schema>({ dialect: new BunSqliteDialect(":memory:") });
+  await migrate(db);
+  await saveScan(db, await Promise.all((await installedPlugins()).map(inspect)), new Date().toISOString());
+
+  const agentId = await createAgent(db, { name: "Beam checker" });
+  const versionId = await publishVersion(db, agentId, {
+    model: "m",
+    systemPrompt: "",
+    tools: [{ pluginName: "beam-mcp", toolName: "beam_reactions" }],
+  });
+
+  let turn = 0;
+  const provider = {
+    name: "fake",
+    async send(_args: unknown, onDelta?: (text: string) => void) {
+      if (turn++ === 0) {
+        onDelta?.("Sizing ");
+        onDelta?.("the reactions.");
+        return {
+          text: ["Sizing the reactions."],
+          toolCalls: [
+            {
+              id: "c1",
+              name: "beam-mcp__beam_reactions",
+              input: { span_m: 6, load_kn: 10, load_from_left_m: 2 },
+            },
+          ],
+          usage: { inputTokens: 10, outputTokens: 5 },
+          raw: {},
+          done: false,
+        };
+      }
+      onDelta?.("6.67 kN.");
+      return {
+        text: ["6.67 kN."],
+        toolCalls: [],
+        usage: { inputTokens: 20, outputTokens: 3 },
+        raw: {},
+        done: true,
+      };
+    },
+  };
+
+  const seen: string[] = [];
+  const outcome = await runAgent({
+    db,
+    provider,
+    version: { id: versionId, model: "m", systemPrompt: "" },
+    tools: await runnableTools(db, versionId),
+    input: "6 m span",
+    onEvent: (event) => seen.push(event.kind === "delta" ? `delta:${event.text}` : event.kind),
+  });
+
+  expect(outcome.error).toBeNull();
+  expect(seen).toEqual([
+    "delta:Sizing ",
+    "delta:the reactions.",
+    "text",
+    "tool_call",
+    "tool_result",
+    "delta:6.67 kN.",
+    "text",
+  ]);
+
+  // Deltas are live only. Nothing writes them to the run.
+  const steps = await db.selectFrom("run_steps").select("kind").orderBy("seq").execute();
+  expect(steps.map((s) => s.kind)).toEqual(["text", "tool_call", "tool_result", "text"]);
+
+  await db.destroy();
+}, 120_000);

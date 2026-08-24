@@ -147,3 +147,7 @@ test("a base url selects the gateway, and its absence selects anthropic", () => 
     /FORGEPOD_API_KEY/,
   );
 });
+
+test("no credentials names the variables to set, rather than the sdk's wording", () => {
+  expect(() => providerFromEnv({})).toThrow(/ANTHROPIC_API_KEY.*FORGEPOD_BASE_URL/s);
+});

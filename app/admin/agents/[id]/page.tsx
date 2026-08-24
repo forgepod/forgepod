@@ -5,7 +5,8 @@ import type { RunStep } from "@/agents/run";
 import { formatParams, formatReturn, type Schema } from "@/plugins/signature";
 import { loadPlugins } from "@/plugins/store";
 import { Masthead } from "../../../masthead";
-import { runAgentAction, saveAgentAction } from "../actions";
+import { saveAgentAction } from "../actions";
+import { RunPanel } from "./run-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -80,27 +81,14 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
           )}
         </div>
 
-        <div className="field-group">
-          <label htmlFor="input">Try it</label>
-          <textarea
-            id="input"
-            name="input"
-            rows={3}
-            className="field"
-            defaultValue={run?.input ?? ""}
-            placeholder="Ask the agent something that should make it reach for a tool."
-          />
-        </div>
-
         <div className="row">
           <button type="submit" className="action">
             Save
           </button>
-          <button type="submit" formAction={runAgentAction} className="action action-quiet">
-            Save and run
-          </button>
         </div>
       </form>
+
+      <RunPanel agentId={agent.id} initialInput={run?.input ?? ""} />
 
       {run ? <Transcript run={run} /> : null}
     </main>

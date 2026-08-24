@@ -18,6 +18,9 @@ export type RunStep =
   | { kind: "tool_call"; tool: string; input: unknown }
   | { kind: "tool_result"; tool: string; output: unknown; isError: boolean };
 
+/** A delta is live only. The recorded step for the same text follows it. */
+export type RunEvent = RunStep | { kind: "delta"; text: string };
+
 export type RunOutcome = {
   runId: string;
   answer: string;
@@ -82,9 +85,11 @@ export async function runAgent(args: {
   input: string;
   maxTurns?: number;
   now?: () => string;
+  onEvent?: (event: RunEvent) => void;
 }): Promise<RunOutcome> {
   const { db, provider, version, tools, input } = args;
   const now = args.now ?? (() => new Date().toISOString());
+  const emit = args.onEvent ?? (() => undefined);
   const maxTurns = args.maxTurns ?? 8;
 
   const runId = crypto.randomUUID();
@@ -116,6 +121,7 @@ export async function runAgent(args: {
 
   const record = async (step: RunStep) => {
     steps.push(step);
+    emit(step);
     await db
       .insertInto("run_steps")
       .values({ run_id: runId, seq: seq++, kind: step.kind, payload: JSON.stringify(step) })
@@ -134,16 +140,19 @@ export async function runAgent(args: {
     for (let turn = 0; ; turn++) {
       if (turn >= maxTurns) throw new Error(`stopped after ${maxTurns} turns without an answer`);
 
-      const turnResult = await provider.send({
-        model: version.model,
-        system: version.systemPrompt,
-        history,
-        tools: tools.map((tool) => ({
-          name: tool.apiName,
-          description: tool.description ?? `${tool.toolName} from ${tool.pluginName}`,
-          inputSchema: tool.inputSchema,
-        })),
-      });
+      const turnResult = await provider.send(
+        {
+          model: version.model,
+          system: version.systemPrompt,
+          history,
+          tools: tools.map((tool) => ({
+            name: tool.apiName,
+            description: tool.description ?? `${tool.toolName} from ${tool.pluginName}`,
+            inputSchema: tool.inputSchema,
+          })),
+        },
+        args.onEvent ? (text) => emit({ kind: "delta", text }) : undefined,
+      );
 
       await db
         .insertInto("run_usage")

@@ -32,7 +32,12 @@ export type SendArgs = {
   tools: ToolSpec[];
 };
 
+/**
+ * `onDelta` is what streaming costs the seam: one optional callback rather than a
+ * second method, so the loop reads the same either way and an adapter that cannot
+ * stream simply ignores it.
+ */
 export interface Provider {
   readonly name: string;
-  send(args: SendArgs): Promise<Turn>;
+  send(args: SendArgs, onDelta?: (text: string) => void): Promise<Turn>;
 }
