@@ -30,6 +30,9 @@ export default async function AgentPage({
   const run = await latestRun(db, id);
   const bound = new Set(agent.tools.map((t) => `${t.pluginName}::${t.toolName}`));
   const toolCount = plugins.reduce((n, p) => n + p.tools.length, 0);
+  // A binding survives a rescan, so it can outlive the tool it names. Saying so here is
+  // the difference between an agent that lost a tool and an agent that lost one quietly.
+  const unavailable = agent.tools.filter((t) => !t.available);
 
   return (
     <main className="sheet">
@@ -37,9 +40,25 @@ export default async function AgentPage({
 
       <PageHeader
         title={agent.name}
-        status={`version ${agent.version}, ${agent.tools.length} of ${toolCount} tools bound`}
+        status={`version ${agent.version}, ${agent.tools.length} of ${toolCount} tools bound${
+          unavailable.length > 0 ? `, ${unavailable.length} unavailable` : ""
+        }`}
         note={saved ? `Version ${saved} published.` : undefined}
       />
+
+      {unavailable.length > 0 ? (
+        <div className="failure">
+          <p>
+            No scanned plugin publishes {unavailable.length === 1 ? "this tool" : "these tools"} any
+            more, so runs go ahead without {unavailable.length === 1 ? "it" : "them"}:{" "}
+            {unavailable.map((t) => `${t.pluginName}.${t.toolName}`).join(", ")}
+          </p>
+          <p>
+            Scan plugins if one is installed but unread. Publishing a new version below drops the
+            bindings that are left.
+          </p>
+        </div>
+      ) : null}
 
       <form action={saveAgentAction}>
         <input type="hidden" name="id" value={agent.id} />

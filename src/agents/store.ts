@@ -13,6 +13,15 @@ export type AgentSummary = {
 
 export type BoundToolRef = { pluginName: string; toolName: string };
 
+/**
+ * A binding is kept by name and survives a rescan on purpose, so a plugin that is briefly
+ * down does not erase an agent's configuration. The cost is that a binding can outlive the
+ * tool it names, after a plugin is upgraded or removed. `available` is that difference,
+ * computed against the same rows the run resolves against, so what the page shows and what
+ * the run can call are one answer rather than two.
+ */
+export type BoundTool = BoundToolRef & { available: boolean };
+
 export type AgentDetail = {
   id: string;
   slug: string;
@@ -21,7 +30,7 @@ export type AgentDetail = {
   version: number;
   model: string;
   systemPrompt: string;
-  tools: BoundToolRef[];
+  tools: BoundTool[];
 };
 
 export const DEFAULT_MODEL = "claude-opus-5";
@@ -86,6 +95,15 @@ export async function loadAgent(db: Kysely<Schema>, id: string): Promise<AgentDe
     .orderBy("tool_name")
     .execute();
 
+  // The same join `runnableTools` resolves through, so the two cannot disagree.
+  const published = await db
+    .selectFrom("plugin_tools")
+    .innerJoin("plugins", "plugins.name", "plugin_tools.plugin_name")
+    .select(["plugin_tools.plugin_name", "plugin_tools.name"])
+    .execute();
+
+  const resolvable = new Set(published.map((t) => `${t.plugin_name} ${t.name}`));
+
   return {
     id: row.id,
     slug: row.slug,
@@ -94,7 +112,11 @@ export async function loadAgent(db: Kysely<Schema>, id: string): Promise<AgentDe
     version: row.version,
     model: row.model,
     systemPrompt: row.system_prompt,
-    tools: tools.map((t) => ({ pluginName: t.plugin_name, toolName: t.tool_name })),
+    tools: tools.map((t) => ({
+      pluginName: t.plugin_name,
+      toolName: t.tool_name,
+      available: resolvable.has(`${t.plugin_name} ${t.tool_name}`),
+    })),
   };
 }
 
