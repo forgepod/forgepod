@@ -39,10 +39,12 @@ is written in sections, `code-review` as a single prompt.
 ## What runs today
 
 `src/plugins/mcp.ts` connects to an MCP server over stdio or HTTP, lists its tools and
-calls them. Two plugins ship. `plugins/beam-mcp` carries numpy and scipy, there to prove
-a plugin's dependencies never reach the core. `plugins/memory-mcp` keeps what an agent
-was told, in SQLite with FTS5 and no embeddings, scoped to the agent's slug: it is what
-proves a plugin can hold state and see who is calling it.
+calls them. Three plugins ship. `plugins/beam-mcp` carries numpy and scipy, there to prove
+a plugin's dependencies never reach the core. `plugins/memory-mcp` keeps what an agent was
+told, in SQLite with FTS5 and no embeddings, scoped to the install and the agent's slug: it
+is what proves a plugin can hold state and see who is calling it. `plugins/csv-mcp` is PHP
+with no MCP library at all, answering JSON-RPC by hand, which is what proves the core has
+no plugin API of its own to conform to.
 
 The admin has one page. Scanning starts every plugin under `plugins/` that holds a
 `plugin.json` and records the tools each one publishes. The page renders that last
@@ -50,7 +52,8 @@ reading as typed signatures, with the launch command used and how long the round
 took. Scanning happens when you ask, since starting every plugin is slow and has side
 effects.
 
-Needs Bun, and Python 3 for the plugins that ship. A container runtime is optional and
+Needs Bun, and Python 3 for two of the plugins that ship. The third is PHP and runs only
+in a container. A container runtime is optional and
 only the container test needs it.
 
 ```sh
@@ -68,7 +71,10 @@ and anything with a compatible `run` command works.
 
 ## Writing a plugin
 
-An MCP server and a `plugin.json` beside it:
+An MCP server and a `plugin.json` beside it. Use your language's MCP library if it has
+one, or answer the protocol directly: it is JSON-RPC 2.0 over stdin and stdout, one object
+per line, with four messages that matter. `plugins/csv-mcp` does it that way in about 270
+lines of dependency-free PHP if you want to see the whole of it.
 
 ```json
 {

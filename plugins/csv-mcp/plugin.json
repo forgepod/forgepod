@@ -1,0 +1,9 @@
+{
+  "name": "csv-mcp",
+  "version": "0.1.0",
+  "description": "Pasted CSV into a table, and the numbers in one column added up.",
+  "transport": "stdio",
+  "command": "php",
+  "args": ["server.php"],
+  "image": "forgepod/csv-mcp:0.1.0"
+}
