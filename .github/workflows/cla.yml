@@ -40,9 +40,9 @@ jobs:
           branch: cla-signatures
           path-to-signatures: signatures/version1/cla.json
           # CLA.md names the maintainer as the rights holder, so asking that account to
-          # grant itself a licence records nothing. Add bot accounts here when one first
-          # opens a pull request, once you have checked how this action matches wildcards.
-          allowlist: fajarhide
+          # grant itself a licence records nothing. checkAllowList.ts turns `*` into `.*`
+          # and tests unanchored, so `*[bot]` matches names like dependabot[bot].
+          allowlist: fajarhide,*[bot]
           # Merging should not end the conversation on a pull request.
           lock-pullrequest-aftermerge: false
           custom-notsigned-prcomment: >
@@ -56,11 +56,22 @@ jobs:
             the two minutes before you agree to anything.
 
 
-            If you are happy with it, reply here with the sentence below. Once per
-            person, not once per pull request, and it never covers plugins or templates
-            in your own repository. The check goes green on its own once you comment,
-            and nothing else is needed from you.
-          custom-pr-sign-comment: "I have read the CLA document and I hereby sign the CLA"
+            If you are happy with it, reply with the sentence below on its own. Capitals
+            do not matter, but it has to be the whole comment, so save any questions for a
+            second one.
+
+
+            Once per person, not once per pull request, and it never covers plugins or
+            templates in your own repository. The check goes green on its own once you
+            comment, and nothing else is needed from you.
+          # Setting this at all changes how the match works, which the action does not
+          # document. Without it the built in sentence is matched by a regex that accepts
+          # surrounding text; with it, signatureComment.ts compares the whole trimmed
+          # comment for equality. Case is lowered on both sides, so only the words matter,
+          # but an extra word anywhere fails silently. Hence the shortest sentence that
+          # still records both halves of the act, reading it and agreeing to it, and a
+          # comment above that says it has to stand alone.
+          custom-pr-sign-comment: "I have read the CLA and I sign it"
           custom-allsigned-prcomment: >
             Signed, thank you. This is the last time you will see this comment, here or
             on anything you send later.
