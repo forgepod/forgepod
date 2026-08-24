@@ -31,7 +31,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           path-to-document: https://github.com/ForgePod/forgepod/blob/main/CLA.md
-          # Signatures live on their own branch so signing never touches main.
+          # Signatures live on their own branch so signing never touches main. That
+          # branch has to exist already: the action does not create it, and every run
+          # fails with "Branch cla-signatures not found" until it does. Worse, the bot
+          # still posts its success comment before that write fails, so the check looks
+          # stuck rather than broken. Do not protect the branch either, which produces
+          # the same message.
           branch: cla-signatures
           path-to-signatures: signatures/version1/cla.json
           # CLA.md names the maintainer as the rights holder, so asking that account to
