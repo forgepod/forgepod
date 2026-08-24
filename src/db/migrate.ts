@@ -1,9 +1,8 @@
 import type { Kysely } from "kysely";
 import type { Schema } from "./schema";
 
-// ponytail: creates what is missing and nothing else, so it cannot alter an existing
-// column. Replace with versioned migrations before the schema has anyone else's data
-// in it.
+// Creates what is missing and nothing else, so it cannot alter an existing column.
+// Replace with versioned migrations before the schema holds anyone else's data.
 export async function migrate(db: Kysely<Schema>): Promise<void> {
   await db.schema
     .createTable("plugins")
