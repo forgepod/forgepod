@@ -1,6 +1,7 @@
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Kysely } from "kysely";
 import type { Schema } from "../db/schema";
+import { installId } from "../db/install";
 import { connect, PluginManifest } from "../plugins/mcp";
 import type { Exchange, Provider, ToolOutcome } from "./provider";
 import type { BoundToolRef } from "./store";
@@ -132,6 +133,10 @@ export async function runAgent(args: {
   // start the same container five times.
   const open = new Map<string, Client>();
   const identity = {
+    // Widest to narrowest. A plugin that keeps state keys on the install and the slug
+    // together: the slug alone is the same on every install of one template, so two
+    // installs sharing a plugin would read each other's rows as their own.
+    FORGEPOD_INSTALL_ID: await installId(db),
     FORGEPOD_AGENT_ID: version.agentId,
     FORGEPOD_AGENT_SLUG: version.slug,
     FORGEPOD_RUN_ID: runId,

@@ -1,10 +1,11 @@
 """What an agent has been told, kept between runs.
 
 The first ForgePod plugin that stores anything, and the first consumer of the
-identity the core injects. Every row is scoped to FORGEPOD_AGENT_SLUG: the slug
-is authored in a template and is the same on every install of it, while the agent
-and run ids are regenerated per install and per run, so the slug is the only key
-that survives a reinstall.
+identity the core injects. Every row is scoped to the install and the agent's slug
+together. The slug is authored in a template and survives a reinstall, where the
+agent and run ids do not, but on its own it is the same string on every install of
+that template, so the install has to be part of the key before two of them ever
+share one plugin.
 
 Retrieval is SQLite's own FTS5 and nothing else. No embeddings, no vector store,
 no model to download. Those can replace the index behind these same three tools
@@ -35,6 +36,7 @@ STATE = Path(os.environ.get("FORGEPOD_STATE_DIR") or Path(__file__).parent / "st
 # A scan lists tools without running an agent, so there is no slug then. Anything written
 # under this name came from outside a run, which is a bug worth being able to see.
 AGENT = os.environ.get("FORGEPOD_AGENT_SLUG") or "unscoped"
+INSTALL = os.environ.get("FORGEPOD_INSTALL_ID") or "unscoped"
 
 
 class Remembered(TypedDict):
@@ -63,8 +65,27 @@ def db() -> sqlite3.Connection:
     # index then needs triggers to stay in step and there is nothing here to gain by it.
     conn.execute(
         "CREATE VIRTUAL TABLE IF NOT EXISTS memories "
-        "USING fts5(agent UNINDEXED, text, remembered_at UNINDEXED)"
+        "USING fts5(install UNINDEXED, agent UNINDEXED, text, remembered_at UNINDEXED)"
     )
+
+    # A file written before installs were part of the key has no install column, and FTS5
+    # has no ALTER. Rebuilding assigns those rows to this install, which is where they
+    # came from: nothing else could have written them. Ids change, and callers holding one
+    # from an earlier run lose it.
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(memories)")}
+    if "install" not in columns:
+        old = conn.execute("SELECT agent, text, remembered_at FROM memories").fetchall()
+        conn.execute("DROP TABLE memories")
+        conn.execute(
+            "CREATE VIRTUAL TABLE memories "
+            "USING fts5(install UNINDEXED, agent UNINDEXED, text, remembered_at UNINDEXED)"
+        )
+        conn.executemany(
+            "INSERT INTO memories (install, agent, text, remembered_at) VALUES (?, ?, ?, ?)",
+            [(INSTALL, *row) for row in old],
+        )
+        conn.commit()
+
     return conn
 
 
@@ -90,8 +111,8 @@ def remember(text: str) -> Remembered:
 
     with db() as conn:
         cursor = conn.execute(
-            "INSERT INTO memories (agent, text, remembered_at) VALUES (?, ?, ?)",
-            (AGENT, text.strip(), datetime.now(timezone.utc).isoformat()),
+            "INSERT INTO memories (install, agent, text, remembered_at) VALUES (?, ?, ?, ?)",
+            (INSTALL, AGENT, text.strip(), datetime.now(timezone.utc).isoformat()),
         )
         return {"id": int(cursor.lastrowid or 0)}
 
@@ -105,14 +126,14 @@ def recall(query: str = "", limit: int = 5) -> Recalled:
         if query.strip():
             rows = conn.execute(
                 "SELECT rowid, text, remembered_at FROM memories "
-                "WHERE memories MATCH ? AND agent = ? ORDER BY rank LIMIT ?",
-                (match_query(query), AGENT, limit),
+                "WHERE memories MATCH ? AND install = ? AND agent = ? ORDER BY rank LIMIT ?",
+                (match_query(query), INSTALL, AGENT, limit),
             ).fetchall()
         else:
             rows = conn.execute(
                 "SELECT rowid, text, remembered_at FROM memories "
-                "WHERE agent = ? ORDER BY rowid DESC LIMIT ?",
-                (AGENT, limit),
+                "WHERE install = ? AND agent = ? ORDER BY rowid DESC LIMIT ?",
+                (INSTALL, AGENT, limit),
             ).fetchall()
 
     return {
@@ -126,9 +147,12 @@ def recall(query: str = "", limit: int = 5) -> Recalled:
 def forget(id: int) -> Forgotten:
     """Delete one memory by the id that remember returned or recall reported."""
     with db() as conn:
-        # The agent filter is the scope check: one agent cannot delete another's row by
-        # guessing an id.
-        cursor = conn.execute("DELETE FROM memories WHERE rowid = ? AND agent = ?", (id, AGENT))
+        # The scope filter is the authorisation check: neither another agent nor another
+        # install can delete a row by guessing an id.
+        cursor = conn.execute(
+            "DELETE FROM memories WHERE rowid = ? AND install = ? AND agent = ?",
+            (id, INSTALL, AGENT),
+        )
         return {"forgotten": cursor.rowcount > 0}
 
 
