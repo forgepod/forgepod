@@ -68,4 +68,15 @@ Use `git commit -s`, which appends a `Signed-off-by` line certifying that you wr
 the change or have the right to submit it, under the
 [Developer Certificate of Origin](https://developercertificate.org/).
 
-Contributions are licensed under AGPL-3.0, the same as the project.
+## Sign the CLA, for this repository only
+
+A first pull request here gets a bot comment linking to [CLA.md](CLA.md). Signing is
+one comment, once per person, and it covers everything you send afterwards.
+
+It exists so the project can distribute contributions under terms other than AGPL-3.0,
+which is what a commercial licence needs. CLA.md says so in its own words rather than
+leaving it implied.
+
+**Plugins and templates need none of this.** They live in their own repositories under
+their own licenses, and nothing in this repository reaches them. If you are building a
+plugin or a template, you are done reading.
