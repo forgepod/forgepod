@@ -3,6 +3,10 @@ name: CLA
 # pull_request_target is required so a fork's pull request can be commented on and
 # marked. This job never checks out the pull request's code, which is what makes
 # that trigger safe to use here.
+#
+# issue_comment is what makes signing take effect without anyone asking twice: the
+# signing comment itself re-runs this job. A comment posted by GITHUB_TOKEN never
+# starts a run, so the bot cannot trigger itself.
 on:
   issue_comment:
     types: [created]
@@ -17,6 +21,8 @@ permissions:
 
 jobs:
   cla:
+    # issue_comment fires on plain issues too, where there is no pull request to check.
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request
     runs-on: ubuntu-latest
     steps:
       # Pinned to a commit, not a tag: a tag can be moved under us.
@@ -25,13 +31,47 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           path-to-document: https://github.com/ForgePod/forgepod/blob/main/CLA.md
-          # Signatures live on their own branch so signing never touches main.
+          # Signatures live on their own branch so signing never touches main. That
+          # branch has to exist already: the action does not create it, and every run
+          # fails with "Branch cla-signatures not found" until it does. Worse, the bot
+          # still posts its success comment before that write fails, so the check looks
+          # stuck rather than broken. Do not protect the branch either, which produces
+          # the same message.
           branch: cla-signatures
           path-to-signatures: signatures/version1/cla.json
+          # CLA.md names the maintainer as the rights holder, so asking that account to
+          # grant itself a licence records nothing. checkAllowList.ts turns `*` into `.*`
+          # and tests unanchored, so `*[bot]` matches names like dependabot[bot].
+          allowlist: fajarhide,*[bot]
+          # Merging should not end the conversation on a pull request.
+          lock-pullrequest-aftermerge: false
           custom-notsigned-prcomment: >
-            Thanks for the pull request. Before it can be merged, please read
-            [CLA.md](https://github.com/ForgePod/forgepod/blob/main/CLA.md) and comment
-            with the sentence below. It is once per person, not once per pull request,
-            and it does not apply to plugins or templates in their own repositories.
-          custom-pr-sign-comment: "I have read the CLA document and I hereby sign the CLA"
-          custom-allsigned-prcomment: "CLA signed, thanks."
+            Thanks for this, and welcome.
+
+
+            ForgePod asks each person to sign a CLA once. It is what lets the project
+            offer a commercial licence alongside AGPL-3.0, and
+            [CLA.md](https://github.com/ForgePod/forgepod/blob/main/CLA.md) says so in as
+            many words rather than keeping the option quiet. It is short, and it is worth
+            the two minutes before you agree to anything.
+
+
+            If you are happy with it, reply with the sentence below on its own. Capitals
+            do not matter, but it has to be the whole comment, so save any questions for a
+            second one.
+
+
+            Once per person, not once per pull request, and it never covers plugins or
+            templates in your own repository. The check goes green on its own once you
+            comment, and nothing else is needed from you.
+          # Setting this at all changes how the match works, which the action does not
+          # document. Without it the built in sentence is matched by a regex that accepts
+          # surrounding text; with it, signatureComment.ts compares the whole trimmed
+          # comment for equality. Case is lowered on both sides, so only the words matter,
+          # but an extra word anywhere fails silently. Hence the shortest sentence that
+          # still records both halves of the act, reading it and agreeing to it, and a
+          # comment above that says it has to stand alone.
+          custom-pr-sign-comment: "I have read the CLA and I sign it"
+          custom-allsigned-prcomment: >
+            Signed, thank you. This is the last time you will see this comment, here or
+            on anything you send later.
