@@ -27,6 +27,10 @@ plugins.
 calls them. `plugins/beam-mcp` is a sample plugin that carries numpy and scipy, there
 to prove a plugin's dependencies never reach the core.
 
+The admin has one page. It reads every directory under `plugins/` that holds a
+`plugin.json`, starts each plugin, and renders the tools it published as typed
+signatures, alongside the launch command used and how long the round trip took.
+
 Needs Bun, and Python 3 for the sample plugin. A container runtime is optional and
 only the container test needs it.
 
@@ -35,6 +39,7 @@ bun install
 bun run plugin:setup   # a venv for the sample plugin, one time
 bun run plugin:image   # build the sample plugin's image, one time
 bun test
+bun run dev            # admin at http://localhost:3000/admin/plugins
 ```
 
 The container test skips itself with a message if the image is not built. Set
@@ -82,10 +87,16 @@ def beam_reactions(span_m: float, load_kn: float, load_from_left_m: float) -> Re
 For a remote plugin, drop `command` and `image` and set `"transport": "http"` with a
 `url`.
 
+## Layout
+
+`src/` is the product and imports no web framework and no runtime-specific global. The
+Next app under `app/` is a delivery shell over it. `src/boundary.test.ts` enforces that,
+so the shell stays replaceable rather than load-bearing.
+
 ## Not built yet
 
-Admin UI, agent storage and versioning, run execution and history, usage recording,
-template installation.
+Everything in the admin past the plugins page, agent storage and versioning, run
+execution and history, usage recording, template installation.
 
 The HTTP transport for remote plugins is written but has never been executed. The
 container path has: the sample plugin has been discovered and called both on the host

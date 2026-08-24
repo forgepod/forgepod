@@ -1,0 +1,248 @@
+/* Temper colours: the shades steel turns as it is heated, straw through to blue.
+   They are used for state only, never for decoration. */
+:root {
+  --steel-050: #f4f6f7;
+  --steel-200: #ccd3d8;
+  --panel: #ffffff;
+  --ink: #101a22;
+  --ink-muted: #5c6b77;
+  --temper-blue: #24486e;
+  --straw: #8a6610;
+  --ember: #8e3b2a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --steel-050: #0f1418;
+    --steel-200: #2b353c;
+    --panel: #151c21;
+    --ink: #e2e8ea;
+    --ink-muted: #8b99a3;
+    --temper-blue: #8db0d8;
+    --straw: #d6ab48;
+    --ember: #d3806c;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--steel-050);
+  color: var(--ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+code,
+.mono {
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+:focus-visible {
+  outline: 2px solid var(--temper-blue);
+  outline-offset: 2px;
+}
+
+.sheet {
+  max-width: 58rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 6rem;
+}
+
+.masthead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 2px solid var(--ink);
+}
+
+.wordmark {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.crumb {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+.summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 2.5rem 0 0.5rem;
+}
+
+.summary h1 {
+  margin: 0;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 1.7rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.tally {
+  margin: 0;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+}
+
+.note {
+  max-width: 58ch;
+  color: var(--ink-muted);
+}
+
+.plugin {
+  border-top: 1px solid var(--steel-200);
+  padding: 1.6rem 0 0.4rem;
+}
+
+.plugin-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.plugin-head h2 {
+  margin: 0;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 1.02rem;
+  font-weight: 600;
+}
+
+.version {
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  white-space: nowrap;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+}
+
+.state::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.state-up {
+  color: var(--straw);
+}
+
+.state-down {
+  color: var(--ember);
+}
+
+.desc {
+  margin: 0.35rem 0 0;
+  max-width: 58ch;
+  color: var(--ink-muted);
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.2rem 1rem;
+  margin: 1.1rem 0 0;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+}
+
+.meta dt {
+  color: var(--ink-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.meta dd {
+  margin: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.tools {
+  display: grid;
+  gap: 1.4rem;
+  margin: 1.5rem 0 0;
+}
+
+.tool h3 {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.sig {
+  margin: 0;
+  padding: 0.6rem 0.85rem;
+  background: var(--panel);
+  border-left: 2px solid var(--steel-200);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.79rem;
+  line-height: 1.7;
+  overflow-x: auto;
+}
+
+.ret {
+  color: var(--temper-blue);
+}
+
+.untyped {
+  color: var(--ember);
+}
+
+.tool-desc {
+  margin: 0.45rem 0 0;
+  max-width: 62ch;
+  font-size: 0.88rem;
+  color: var(--ink-muted);
+}
+
+.failure {
+  margin: 1.1rem 0 0;
+  padding: 0.7rem 0.85rem;
+  border-left: 2px solid var(--ember);
+  background: var(--panel);
+  font-size: 0.85rem;
+}
+
+.failure p {
+  margin: 0;
+}
+
+.failure p + p {
+  margin-top: 0.4rem;
+  color: var(--ink-muted);
+}
+
+.tool h3 {
+  color: var(--temper-blue);
+}

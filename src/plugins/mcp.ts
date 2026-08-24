@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { readFile } from "node:fs/promises";
 import { z } from "zod";
 
 const base = {
@@ -32,7 +33,7 @@ export type PluginManifest = z.infer<typeof PluginManifest>;
 type StdioManifest = Extract<PluginManifest, { transport: "stdio" }>;
 
 export async function loadManifest(dir: string): Promise<PluginManifest> {
-  return PluginManifest.parse(await Bun.file(`${dir}/plugin.json`).json());
+  return PluginManifest.parse(JSON.parse(await readFile(`${dir}/plugin.json`, "utf8")));
 }
 
 export type LaunchOptions = {
@@ -45,7 +46,7 @@ export type LaunchOptions = {
   runtime?: string;
 };
 
-export const defaultRuntime = () => Bun.env.FORGEPOD_CONTAINER_RUNTIME || "docker";
+export const defaultRuntime = () => process.env.FORGEPOD_CONTAINER_RUNTIME || "docker";
 
 /**
  * Containerising a plugin is this rewrite and nothing else. Core holds no container

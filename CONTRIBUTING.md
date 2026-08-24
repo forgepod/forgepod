@@ -29,6 +29,11 @@ search is the usual casualty and belongs in a plugin that brings its own store.
 Core carries no Docker client. Launching a plugin in a container is a rewrite of its
 command and nothing else, because stdio makes the container's own streams the channel.
 
+Core carries no web framework. Everything under `src/` is plain TypeScript with no Next
+import and no Bun-only global, and the Next app under `app/` is a shell over it.
+`src/boundary.test.ts` fails the build if that slips. Next is a good fit today and has
+changed shape before; keeping the product out of it is what makes that survivable.
+
 ## Setup
 
 Needs Bun, and Python 3 for the sample plugin. A container runtime is optional.
