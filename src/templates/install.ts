@@ -38,9 +38,15 @@ export async function checkTemplate(
   const plugins = new Set(
     (await db.selectFrom("plugins").select("name").execute()).map((r) => r.name),
   );
-  for (const plugin of manifest.requires) {
-    if (!plugins.has(plugin)) problems.push({ kind: "missing-plugin", plugin });
-  }
+
+  // A plugin a tool is bound to counts as required whether the author listed it or not,
+  // so forgetting it in `requires` is reported as the missing plugin it is.
+  const wanted = new Set([
+    ...manifest.requires,
+    ...manifest.agents.flatMap((a) => a.tools.map((t) => t.plugin)),
+  ]);
+  const missing = new Set([...wanted].filter((name) => !plugins.has(name)));
+  for (const plugin of missing) problems.push({ kind: "missing-plugin", plugin });
 
   const tools = new Set(
     (await db.selectFrom("plugin_tools").select(["plugin_name", "name"]).execute()).map((r) =>
@@ -53,6 +59,9 @@ export async function checkTemplate(
 
   for (const agent of manifest.agents) {
     for (const ref of agent.tools) {
+      // A tool of an absent plugin is not an unknown tool, it is the absent plugin again.
+      // Saying both turns one missing plugin into a page of complaints.
+      if (missing.has(ref.plugin)) continue;
       if (!tools.has(toolKey(ref.plugin, ref.tool))) {
         problems.push({ kind: "unknown-tool", plugin: ref.plugin, tool: ref.tool });
       }

@@ -17,9 +17,18 @@ loop, so there is no workflow engine to learn.
 normal MCP server in whatever language suits the job and it works here and anywhere
 else that speaks MCP.
 
-**Template** is a declarative package: agent definitions, prompts, tool bindings, UI
-configuration and the plugins it requires. A vertical is a template plus a few
-plugins.
+**Template** is a directory holding a `template.json`: the agents it creates, their
+prompts, their tool bindings, and the plugins it requires. A vertical is a template plus
+a few plugins.
+
+Installing one from `/admin/templates` writes those agents and then forgets the template
+existed, so what you have afterwards are ordinary agents you edit and delete like any
+other. That is also why there is no upgrade path: a changed template installs as new
+agents, or is applied by hand.
+
+Three ship in `templates/`. `structural-beam` binds both tools of the sample beam
+plugin. `legal-drafting` and `code-review` bind none at all, which is the split that
+matters: a core that quietly assumes an agent has tools fails on the second and third.
 
 ## What runs today
 
@@ -151,7 +160,9 @@ which is what `bun --bun next start` in the scripts is for.
 
 ## Not built yet
 
-Template installation, agent assignment, quotas, guardrails, and everything billing.
+Agent assignment, quotas, guardrails, and everything billing. A template carries no UI
+configuration, and declares no storage of its own: a vertical that needs either owns it
+in a plugin.
 Version history is recorded but there is no way to view or roll back to an old version
 yet.
 

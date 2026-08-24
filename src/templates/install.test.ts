@@ -171,3 +171,54 @@ test("every problem is reported at once, not one per attempt", async () => {
 
   await db.destroy();
 });
+
+test("a missing plugin is reported once, not once per tool bound to it", async () => {
+  const db = await scannedDb();
+  await db.deleteFrom("plugin_tools").execute();
+  await db.deleteFrom("plugins").execute();
+
+  // Two bindings into one absent plugin, and the plugin named in requires as well.
+  const problems = await checkTemplate(
+    db,
+    manifest({
+      agents: [
+        {
+          slug: "beam-checker",
+          name: "Beam Checker",
+          systemPrompt: "Check beams.",
+          tools: [
+            { plugin: "beam-mcp", tool: "beam_reactions" },
+            { plugin: "beam-mcp", tool: "rectangular_section_modulus" },
+          ],
+        },
+      ],
+    }),
+  );
+
+  expect(problems).toEqual([{ kind: "missing-plugin", plugin: "beam-mcp" }]);
+
+  await db.destroy();
+});
+
+test("a plugin bound to but left out of requires is still reported missing", async () => {
+  const db = await scannedDb();
+
+  const problems = await checkTemplate(
+    db,
+    manifest({
+      requires: [],
+      agents: [
+        {
+          slug: "beam-checker",
+          name: "Beam Checker",
+          systemPrompt: "Check beams.",
+          tools: [{ plugin: "absent-mcp", tool: "whatever" }],
+        },
+      ],
+    }),
+  );
+
+  expect(problems).toEqual([{ kind: "missing-plugin", plugin: "absent-mcp" }]);
+
+  await db.destroy();
+});
