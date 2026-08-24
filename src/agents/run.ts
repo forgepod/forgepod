@@ -83,7 +83,13 @@ export async function runnableTools(
 export async function runAgent(args: {
   db: Kysely<Schema>;
   provider: Provider;
-  version: { id: string; model: string; systemPrompt: string };
+  /**
+   * `agentId` and `slug` name the agent this version belongs to, and are here because a
+   * plugin has to know who is calling it. A stateful plugin keys on the slug: it is
+   * authored once and identical on every install of a template, while the ids are
+   * regenerated per install and per run.
+   */
+  version: { id: string; agentId: string; slug: string; model: string; systemPrompt: string };
   tools: RunnableTool[];
   /**
    * Bindings the agent declares that no installed plugin publishes any more. They cannot
@@ -121,6 +127,11 @@ export async function runAgent(args: {
   // Opened once per run and reused across turns, so a five-turn conversation does not
   // start the same container five times.
   const open = new Map<string, Client>();
+  const identity = {
+    FORGEPOD_AGENT_ID: version.agentId,
+    FORGEPOD_AGENT_SLUG: version.slug,
+    FORGEPOD_RUN_ID: runId,
+  };
 
   let seq = 0;
   let inputTokens = 0;
@@ -140,7 +151,7 @@ export async function runAgent(args: {
   const clientFor = async (tool: RunnableTool): Promise<Client> => {
     const existing = open.get(tool.pluginName);
     if (existing) return existing;
-    const opened = await connect(tool.manifest);
+    const opened = await connect(tool.manifest, { identity });
     open.set(tool.pluginName, opened);
     return opened;
   };

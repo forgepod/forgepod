@@ -44,6 +44,13 @@ export type LaunchOptions = {
    * change it, and rootless Podman is a common choice on servers.
    */
   runtime?: string;
+  /**
+   * Who is calling, as environment variables the plugin can read. A plugin that keeps
+   * state has no other way to scope it: its manifest is identical on every install, so
+   * without this every agent it serves shares one namespace. Core merges these last, so a
+   * manifest cannot declare itself a different agent.
+   */
+  identity?: Record<string, string>;
 };
 
 export const defaultRuntime = () => process.env.FORGEPOD_CONTAINER_RUNTIME || "docker";
@@ -63,12 +70,22 @@ export function resolveLaunch(
 
   // Only the names are passed. Values reach the container through the process
   // environment, so a secret never lands in an argv another process can read.
-  const env = Object.keys(manifest.env ?? {}).flatMap((key) => ["-e", key]);
+  const names = new Set([...Object.keys(manifest.env ?? {}), ...Object.keys(opts.identity ?? {})]);
+  const env = [...names].flatMap((key) => ["-e", key]);
   return {
     command: opts.runtime ?? defaultRuntime(),
     args: ["run", "--rm", "-i", ...env, manifest.image],
   };
 }
+
+/** Exported so the precedence between a manifest's env and core's identity is testable. */
+export const launchEnv = (manifest: StdioManifest, opts: LaunchOptions = {}) => ({
+  // Merged, not replaced: the transport's default environment is a filtered
+  // allowlist, and dropping it breaks anything that needs PATH or HOME.
+  ...getDefaultEnvironment(),
+  ...manifest.env,
+  ...opts.identity,
+});
 
 export async function connect(
   manifest: PluginManifest,
@@ -76,6 +93,9 @@ export async function connect(
 ): Promise<Client> {
   const client = new Client({ name: "forgepod", version: "0.1.0" });
 
+  // ponytail: identity is stdio only. Over http it would have to become headers, and
+  // proxies drop underscored header names, so leave the mapping until a plugin ships
+  // over http.
   if (manifest.transport === "http") {
     await client.connect(
       new StreamableHTTPClientTransport(new URL(manifest.url), {
@@ -89,9 +109,7 @@ export async function connect(
     new StdioClientTransport({
       ...resolveLaunch(manifest, opts),
       cwd: opts.cwd,
-      // Merged, not replaced: the transport's default environment is a filtered
-      // allowlist, and dropping it breaks anything that needs PATH or HOME.
-      env: { ...getDefaultEnvironment(), ...manifest.env },
+      env: launchEnv(manifest, opts),
       stderr: "pipe",
     }),
   );
