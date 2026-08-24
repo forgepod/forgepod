@@ -78,3 +78,7 @@ Admin UI, agent storage and versioning, run execution and history, usage recordi
 template installation. The container launch is assembled and unit tested, but no
 container has actually been started, since Docker was absent from the machine the
 plugin runtime was written on.
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE).
