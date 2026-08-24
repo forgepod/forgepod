@@ -55,7 +55,7 @@ export async function connect(
   manifest: PluginManifest,
   opts: { cwd?: string; useContainer?: boolean } = {},
 ): Promise<Client> {
-  const client = new Client({ name: "hms", version: "0.1.0" });
+  const client = new Client({ name: "forgepod", version: "0.1.0" });
 
   if (manifest.transport === "http") {
     await client.connect(

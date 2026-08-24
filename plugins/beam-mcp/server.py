@@ -1,4 +1,4 @@
-"""Beam statics over MCP: the first HMS plugin, kept deliberately small.
+"""Beam statics over MCP: the first ForgePod plugin, kept deliberately small.
 
 It exists to prove one thing, that a plugin carrying binary scientific
 dependencies (numpy, scipy) is discoverable and callable by the TypeScript core

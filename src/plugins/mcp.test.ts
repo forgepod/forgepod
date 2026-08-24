@@ -13,7 +13,7 @@ test("a stdio launch becomes a docker launch only when an image is declared", as
   });
   expect(resolveLaunch(manifest, true)).toEqual({
     command: "docker",
-    args: ["run", "--rm", "-i", "hms/beam-mcp:0.1.0"],
+    args: ["run", "--rm", "-i", "forgepod/beam-mcp:0.1.0"],
   });
   expect(() => resolveLaunch({ ...manifest, image: undefined }, true)).toThrow();
 });

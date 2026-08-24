@@ -5,5 +5,5 @@
   "transport": "stdio",
   "command": ".venv/bin/python",
   "args": ["server.py"],
-  "image": "hms/beam-mcp:0.1.0"
+  "image": "forgepod/beam-mcp:0.1.0"
 }
