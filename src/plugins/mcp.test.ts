@@ -9,21 +9,26 @@ const runtime = defaultRuntime();
 const manifest = await loadManifest(dir);
 if (manifest.transport !== "stdio") throw new Error("expected a stdio manifest");
 
-async function imageIsBuilt(): Promise<boolean> {
+async function runtimeAnswers(args: string[]): Promise<boolean> {
   try {
-    const probe = Bun.spawn([runtime, "image", "inspect", image], {
-      stdout: "ignore",
-      stderr: "ignore",
-    });
+    const probe = Bun.spawn([runtime, ...args], { stdout: "ignore", stderr: "ignore" });
     return (await probe.exited) === 0;
   } catch {
     return false;
   }
 }
 
-const built = await imageIsBuilt();
+// Two different reasons to skip, and saying the wrong one sends a reader to build an
+// image that already exists. A runtime that does not answer is the likelier of the two,
+// because the default is docker and a machine may only have podman.
+const runtimeUp = await runtimeAnswers(["info"]);
+const built = runtimeUp && (await runtimeAnswers(["image", "inspect", image]));
 if (!built) {
-  console.warn(`skipping the container test: ${runtime} has no ${image}, run \`bun run plugin:image\``);
+  console.warn(
+    runtimeUp
+      ? `skipping the container tests: ${runtime} has no ${image}, run \`bun run plugin:image\``
+      : `skipping the container tests: ${runtime} is not answering. Set FORGEPOD_CONTAINER_RUNTIME to the runtime you actually use.`,
+  );
 }
 
 test("a stdio launch becomes a container launch only when an image is declared", () => {

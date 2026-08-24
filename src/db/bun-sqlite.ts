@@ -47,7 +47,7 @@ class BunSqliteConnection implements DatabaseConnection {
     const statement = this.db.prepare(compiled.sql);
     const parameters = compiled.parameters as never[];
 
-    // ponytail: reads are told from writes by the leading keyword, because bun:sqlite
+    // Reads are told from writes by the leading keyword, because bun:sqlite
     // exposes no equivalent of better-sqlite3's `reader`. A CTE that writes would be
     // misread; none exist here. Revisit if one ever does.
     if (/^\s*(select|with|pragma)\b/i.test(compiled.sql) || /\breturning\b/i.test(compiled.sql)) {

@@ -11,21 +11,29 @@ import { anthropicProvider } from "./providers";
 import { runAgent, runnableTools } from "./run";
 
 const image = "forgepod/beam-mcp:0.1.0";
+const runtime = defaultRuntime();
 
-async function imageIsBuilt(): Promise<boolean> {
+async function runtimeAnswers(args: string[]): Promise<boolean> {
   try {
-    const probe = Bun.spawn([defaultRuntime(), "image", "inspect", image], {
-      stdout: "ignore",
-      stderr: "ignore",
-    });
+    const probe = Bun.spawn([runtime, ...args], { stdout: "ignore", stderr: "ignore" });
     return (await probe.exited) === 0;
   } catch {
     return false;
   }
 }
 
-const built = await imageIsBuilt();
-if (!built) console.warn("skipping the agent run test: run `bun run plugin:image` first");
+// Two different reasons to skip, and saying the wrong one sends a reader to build an
+// image that already exists. A runtime that does not answer is the likelier of the two,
+// because the default is docker and a machine may only have podman.
+const runtimeUp = await runtimeAnswers(["info"]);
+const built = runtimeUp && (await runtimeAnswers(["image", "inspect", image]));
+if (!built) {
+  console.warn(
+    runtimeUp
+      ? `skipping the agent run tests: ${runtime} has no ${image}, run \`bun run plugin:image\``
+      : `skipping the agent run tests: ${runtime} is not answering. Set FORGEPOD_CONTAINER_RUNTIME to the runtime you actually use.`,
+  );
+}
 
 /** Replaces the provider's HTTP, so the loop is exercised while the tool call is real. */
 function stubbedProvider(bodies: unknown[]) {

@@ -42,8 +42,9 @@ export function launchLine(manifest: PluginManifest): string {
   return [command, ...args].join(" ");
 }
 
-// ponytail: starts a plugin on every call, so one page load starts one container per
-// plugin. Cache the tool list alongside the install record once there is a database.
+// Starts the plugin and waits for it to answer, so this is slow and side effecting.
+// Callers run it when an operator asks for a scan, never on a page load: what a page
+// renders is the stored result of the last one.
 export async function inspect(entry: Installed): Promise<Inspection> {
   if (!entry.manifest) return entry;
   const launch = launchLine(entry.manifest);
