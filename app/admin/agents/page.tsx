@@ -1,28 +1,42 @@
 import Link from "next/link";
 import { database } from "@/db";
 import { listAgents } from "@/agents/store";
+import { loadPlugins } from "@/plugins/store";
 import { Masthead } from "../../masthead";
+import { PageHeader } from "../../page-header";
 import { createAgentAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Agents" };
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
 export default async function AgentsPage() {
-  const agents = await listAgents(await database());
+  const db = await database();
+  const agents = await listAgents(db);
+  const plugins = await loadPlugins(db);
+  const tools = plugins.reduce((n, p) => n + p.tools.length, 0);
 
   return (
     <main className="sheet">
       <Masthead here="agents" />
 
-      <div className="summary">
-        <h1>Agents</h1>
-      </div>
+      <PageHeader
+        title="Agents"
+        status={agents.length > 0 ? plural(agents.length, "agent") : undefined}
+        note={
+          agents.length === 0
+            ? "An agent is a prompt, a model, and the tools it may call. Name one to start."
+            : undefined
+        }
+      />
 
-      <p className="note">
-        {agents.length === 0
-          ? "An agent is a prompt, a model and the tools it may call. Name one to start."
-          : "Saving an agent publishes a new version. Runs record the version they used, so history stays true."}
-      </p>
+      {tools === 0 ? (
+        <p className="note">
+          No tools available yet. <Link href="/admin/plugins">Scan your plugins</Link> first,
+          and an agent will have something to reach for.
+        </p>
+      ) : null}
 
       <form action={createAgentAction} className="row">
         <input name="name" placeholder="Name the agent" required className="field" />
@@ -38,15 +52,11 @@ export default async function AgentsPage() {
               <Link href={`/admin/agents/${agent.id}`}>{agent.name}</Link>{" "}
               <span className="version">v{agent.version}</span>
             </h2>
-            <span className="state state-up">
-              {agent.toolCount} {agent.toolCount === 1 ? "tool" : "tools"}
-            </span>
+            <span className="count">{plural(agent.toolCount, "tool")} bound</span>
           </div>
           <dl className="meta">
             <dt>model</dt>
             <dd>{agent.model}</dd>
-            <dt>slug</dt>
-            <dd>{agent.slug}</dd>
           </dl>
         </section>
       ))}

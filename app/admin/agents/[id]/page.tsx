@@ -1,17 +1,27 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { database } from "@/db";
-import { latestRun, loadAgent, type RunRecord } from "@/agents/store";
-import type { RunStep } from "@/agents/run";
+import { latestRun, loadAgent } from "@/agents/store";
 import { formatParams, formatReturn, type Schema } from "@/plugins/signature";
 import { loadPlugins } from "@/plugins/store";
 import { Masthead } from "../../../masthead";
-import { saveAgentAction } from "../actions";
+import { PageHeader } from "../../../page-header";
+import { deleteAgentAction, saveAgentAction } from "../actions";
+import { ConfirmButton } from "./confirm-button";
 import { RunPanel } from "./run-panel";
 
 export const dynamic = "force-dynamic";
 
-export default async function AgentPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function AgentPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ saved?: string }>;
+}) {
   const { id } = await params;
+  const { saved } = await searchParams;
+
   const db = await database();
   const agent = await loadAgent(db, id);
   if (!agent) notFound();
@@ -19,17 +29,17 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
   const plugins = await loadPlugins(db);
   const run = await latestRun(db, id);
   const bound = new Set(agent.tools.map((t) => `${t.pluginName}::${t.toolName}`));
+  const toolCount = plugins.reduce((n, p) => n + p.tools.length, 0);
 
   return (
     <main className="sheet">
       <Masthead here="agents" />
 
-      <div className="summary">
-        <h1>{agent.name}</h1>
-        <p className="tally">
-          version {agent.version}, {agent.tools.length} bound
-        </p>
-      </div>
+      <PageHeader
+        title={agent.name}
+        status={`version ${agent.version}, ${agent.tools.length} of ${toolCount} tools bound`}
+        note={saved ? `Version ${saved} published.` : undefined}
+      />
 
       <form action={saveAgentAction}>
         <input type="hidden" name="id" value={agent.id} />
@@ -47,7 +57,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
             defaultValue={agent.systemPrompt}
             rows={8}
             className="field"
-            placeholder="Tell the agent what it is for and when to reach for a tool."
+            placeholder="Tell the agent what it is for, and when to reach for a tool."
           />
         </div>
 
@@ -55,7 +65,8 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
           <span className="label">Tools</span>
           {plugins.length === 0 ? (
             <p className="note">
-              No plugins scanned yet. Scan on the plugins page and the tools appear here.
+              No plugins scanned yet. <Link href="/admin/plugins">Scan them</Link> and every
+              tool they publish appears here.
             </p>
           ) : (
             plugins.map((plugin) => (
@@ -65,7 +76,12 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
                   const value = `${plugin.name}::${tool.name}`;
                   return (
                     <label className="pick" key={value}>
-                      <input type="checkbox" name="tool" value={value} defaultChecked={bound.has(value)} />
+                      <input
+                        type="checkbox"
+                        name="tool"
+                        value={value}
+                        defaultChecked={bound.has(value)}
+                      />
                       <span className="pick-body">
                         <span className="pick-name">{tool.name}</span>
                         <span className="pick-sig">
@@ -85,60 +101,19 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
           <button type="submit" className="action">
             Save
           </button>
+          <span className="hint">Saving publishes a new version.</span>
         </div>
       </form>
 
-      <RunPanel agentId={agent.id} initialInput={run?.input ?? ""} />
+      <RunPanel agentId={agent.id} stored={run} hasTools={agent.tools.length > 0} />
 
-      {run ? <Transcript run={run} /> : null}
+      <form action={deleteAgentAction} className="danger-zone">
+        <input type="hidden" name="id" value={agent.id} />
+        <ConfirmButton question={`Delete ${agent.name} and every run it recorded?`}>
+          Delete agent
+        </ConfirmButton>
+        <span className="hint">Its versions and run history go with it.</span>
+      </form>
     </main>
-  );
-}
-
-function Transcript({ run }: { run: RunRecord }) {
-  return (
-    <section className="plugin">
-      <div className="plugin-head">
-        <h2>Last run</h2>
-        <span className={`state ${run.error ? "state-down" : "state-up"}`}>
-          {run.error ? "failed" : `${run.inputTokens} in, ${run.outputTokens} out`}
-        </span>
-      </div>
-
-      {run.error ? (
-        <div className="failure">
-          <p>{run.error}</p>
-        </div>
-      ) : null}
-
-      <div className="tools">
-        {run.steps.map((step, index) => (
-          <StepView key={index} step={step} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function StepView({ step }: { step: RunStep }) {
-  if (step.kind === "text") return <p className="say">{step.text}</p>;
-
-  if (step.kind === "tool_call") {
-    return (
-      <pre className="sig">
-        <code>
-          {step.tool}({JSON.stringify(step.input)})
-        </code>
-      </pre>
-    );
-  }
-
-  return (
-    <pre className={`sig ${step.isError ? "sig-error" : ""}`}>
-      <code>
-        {"→ "}
-        <span className={step.isError ? "untyped" : "ret"}>{JSON.stringify(step.output)}</span>
-      </code>
-    </pre>
   );
 }

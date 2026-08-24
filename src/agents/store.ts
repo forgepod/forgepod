@@ -227,3 +227,26 @@ export async function latestRun(db: Kysely<Schema>, agentId: string): Promise<Ru
     outputTokens: usage.reduce((n, u) => n + u.output_tokens, 0),
   };
 }
+
+/**
+ * Runs reference a version, so they go before it. The version and its bindings then go
+ * with the agent by cascade. Deleting an agent deletes its history: a run whose
+ * configuration no longer exists could not be read back honestly anyway.
+ */
+export async function deleteAgent(db: Kysely<Schema>, agentId: string): Promise<void> {
+  await db.transaction().execute(async (trx) => {
+    const versions = await trx
+      .selectFrom("agent_versions")
+      .select("id")
+      .where("agent_id", "=", agentId)
+      .execute();
+
+    const ids = versions.map((v) => v.id);
+    if (ids.length > 0) {
+      await trx.deleteFrom("runs").where("agent_version_id", "in", ids).execute();
+    }
+
+    await trx.updateTable("agents").set({ published_version_id: null }).where("id", "=", agentId).execute();
+    await trx.deleteFrom("agents").where("id", "=", agentId).execute();
+  });
+}

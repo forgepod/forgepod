@@ -2,6 +2,7 @@ import { database } from "@/db";
 import { formatParams, formatReturn, type Schema } from "@/plugins/signature";
 import { loadPlugins, type StoredPlugin, type StoredTool } from "@/plugins/store";
 import { Masthead } from "../../masthead";
+import { PageHeader } from "../../page-header";
 import { rescan } from "./actions";
 
 export const dynamic = "force-dynamic";

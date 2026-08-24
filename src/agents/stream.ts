@@ -8,7 +8,7 @@ export type StreamEvent =
   | { kind: "text"; text: string }
   | { kind: "tool_call"; tool: string; input: unknown }
   | { kind: "tool_result"; tool: string; output: unknown; isError: boolean }
-  | { kind: "done"; error: string | null };
+  | { kind: "done"; runId: string | null; error: string | null };
 
 export type LiveStep =
   | { kind: "text"; text: string }

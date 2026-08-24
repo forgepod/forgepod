@@ -3,18 +3,33 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { appendText, readEvents, type LiveStep } from "@/agents/stream";
+import type { RunRecord } from "@/agents/store";
 
-export function RunPanel({ agentId, initialInput }: { agentId: string; initialInput: string }) {
+export function RunPanel({
+  agentId,
+  stored,
+  hasTools,
+}: {
+  agentId: string;
+  stored: RunRecord | null;
+  hasTools: boolean;
+}) {
   const router = useRouter();
-  const [input, setInput] = useState(initialInput);
+  const [input, setInput] = useState(stored?.input ?? "");
   const [live, setLive] = useState<LiveStep[]>([]);
   const [running, setRunning] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const [finishedRunId, setFinishedRunId] = useState<string | null>(null);
 
-  async function run(event: React.FormEvent) {
-    event.preventDefault();
+  // The preview gives way to the stored run the moment the refreshed page carries it,
+  // so the same transcript is never on screen twice.
+  const showStored = !running && stored && (finishedRunId === null || stored.id === finishedRunId);
+
+  async function run(submit: React.FormEvent) {
+    submit.preventDefault();
     setLive([]);
     setFailure(null);
+    setFinishedRunId(null);
     setRunning(true);
 
     try {
@@ -23,13 +38,12 @@ export function RunPanel({ agentId, initialInput }: { agentId: string; initialIn
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ input }),
       });
-
       if (!response.body) throw new Error("The server sent no stream.");
 
       for await (const message of readEvents(response.body)) {
         if (message.kind === "done") {
-          setFailure(message.error ?? null);
-          // The stored run is the record; the live view above was only a preview.
+          setFailure(message.error);
+          setFinishedRunId(message.runId);
           router.refresh();
         } else if (message.kind === "delta") {
           setLive((current) => appendText(current, message.text));
@@ -44,42 +58,56 @@ export function RunPanel({ agentId, initialInput }: { agentId: string; initialIn
     }
   }
 
+  const steps: LiveStep[] = showStored
+    ? (stored.steps.filter((s) => s.kind !== "text" || s.text.trim() !== "") as LiveStep[])
+    : live;
+
   return (
     <section className="plugin">
       <div className="plugin-head">
         <h2>Try it</h2>
-        <span className="state state-up">runs the saved version</span>
+        {showStored && !stored.error ? (
+          <span className="count">
+            {stored.inputTokens} in, {stored.outputTokens} out
+          </span>
+        ) : running ? (
+          <span className="state state-up">running</span>
+        ) : null}
       </div>
 
       <form onSubmit={run}>
         <textarea
-          name="input"
           rows={3}
           className="field"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask something that should make the agent reach for a tool."
+          placeholder={
+            hasTools
+              ? "Ask something that should make the agent reach for a tool."
+              : "This agent has no tools bound yet. It can still answer from the prompt alone."
+          }
         />
         <div className="row">
           <button type="submit" className="action" disabled={running}>
             {running ? "Running" : "Run"}
           </button>
+          <span className="hint">Runs the saved version.</span>
         </div>
       </form>
 
-      {failure ? (
+      {failure ?? (showStored ? stored.error : null) ? (
         <div className="failure">
-          <p>{failure}</p>
+          <p>{failure ?? stored?.error}</p>
         </div>
       ) : null}
 
-      {live.length > 0 ? (
+      {steps.length > 0 ? (
         <div className="tools">
-          {live.map((step, index) =>
+          {steps.map((step, index) =>
             step.kind === "text" ? (
               <p className="say" key={index}>
                 {step.text}
-                {running && index === live.length - 1 ? <span className="cursor" /> : null}
+                {running && index === steps.length - 1 ? <span className="cursor" /> : null}
               </p>
             ) : step.kind === "tool_call" ? (
               <pre className="sig" key={index}>

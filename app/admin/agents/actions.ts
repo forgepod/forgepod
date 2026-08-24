@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { database } from "@/db";
-import { createAgent, publishVersion, type BoundToolRef } from "@/agents/store";
+import { createAgent, deleteAgent, loadAgent, publishVersion, type BoundToolRef } from "@/agents/store";
 
 const parseTools = (form: FormData): BoundToolRef[] =>
   form
@@ -23,10 +23,22 @@ export async function createAgentAction(form: FormData): Promise<void> {
 
 export async function saveAgentAction(form: FormData): Promise<void> {
   const id = String(form.get("id"));
-  await publishVersion(await database(), id, {
+  const db = await database();
+
+  await publishVersion(db, id, {
     model: String(form.get("model") ?? "").trim(),
     systemPrompt: String(form.get("systemPrompt") ?? ""),
     tools: parseTools(form),
   });
+
+  // Saving publishes, and a silent publish is indistinguishable from a lost edit, so
+  // the version that was written comes back in the URL and the page says so.
+  const saved = await loadAgent(db, id);
   revalidatePath(`/admin/agents/${id}`);
+  redirect(`/admin/agents/${id}?saved=${saved?.version ?? ""}`);
+}
+
+export async function deleteAgentAction(form: FormData): Promise<void> {
+  await deleteAgent(await database(), String(form.get("id")));
+  redirect("/admin/agents");
 }
