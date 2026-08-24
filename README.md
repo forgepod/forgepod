@@ -81,4 +81,11 @@ plugin runtime was written on.
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+AGPL-3.0. See [LICENSE](LICENSE).
+
+Copyright 2026 ForgePod contributors. Modifying the core and offering it to others
+over a network obliges you to offer them your modified source. Plugins and templates
+are separate works and are not affected, since a plugin runs as its own process.
+
+[Contributing](CONTRIBUTING.md), [code of conduct](CODE_OF_CONDUCT.md),
+[security policy](SECURITY.md).
