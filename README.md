@@ -30,6 +30,12 @@ Three ship in `templates/`. `structural-beam` binds both tools of the sample bea
 plugin. `legal-drafting` and `code-review` bind none at all, which is the split that
 matters: a core that quietly assumes an agent has tools fails on the second and third.
 
+An agent's prompt is written either as one `systemPrompt`, or as the named sections
+`persona`, `instructions`, `guardrails` and `outputFormat`. Sections are joined in that
+order at install, with a blank line between the ones present and nothing added around
+them. An agent gives one shape or the other, and giving both is rejected. `legal-drafting`
+is written in sections, `code-review` as a single prompt.
+
 ## What runs today
 
 `src/plugins/mcp.ts` connects to an MCP server over stdio or HTTP, lists its tools and
