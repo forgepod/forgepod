@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/ForgePod/forgepod/security/advisories/new
+    about: Report privately here instead. Please do not open a public issue for it.
+  - name: Building a plugin or a template
+    url: https://github.com/ForgePod/forgepod/blob/main/CONTRIBUTING.md
+    about: Those live in your own repository. Nothing needs to be filed here.

@@ -1,0 +1,61 @@
+name: Bug
+description: Something behaves differently than documented
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Commands, in order. A reproduction on the sample plugin is worth more than a description of one on yours.
+      placeholder: |
+        bun install
+        bun run plugin:setup
+        bun test
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Paste it rather than describing it. This is rendered as a code block already.
+      render: shell
+    validations:
+      required: true
+
+  - type: dropdown
+    id: plugin_transport
+    attributes:
+      label: How was the plugin launched
+      description: The container path and the host path fail differently, so this decides where to look first.
+      options:
+        - No plugin involved
+        - Container, image declared
+        - Host, running from a local checkout
+        - Remote over HTTP
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: Output of `git rev-parse --short HEAD`. Nothing is released yet, so a version number will not do.
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: Bun and OS
+      placeholder: bun 1.3.14, macOS 15
+    validations:
+      required: true

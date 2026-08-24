@@ -1,0 +1,48 @@
+name: Core change
+description: Propose something that has to live in the core itself
+labels: [core]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Core carries no domain logic. Anything one use case needs belongs in a plugin
+        or a template, so the questions below are the whole review. A proposal that
+        cannot answer them gets closed regardless of how good the idea is.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What should core do
+    validations:
+      required: true
+
+  - type: textarea
+    id: two_uses
+    attributes:
+      label: Two unrelated use cases that need it
+      description: Name two verticals with little in common. If only one needs it, that is the answer to where it belongs.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why_not_plugin
+    attributes:
+      label: Why a plugin or a template cannot do this
+      description: Say what you tried. The usual reason is that only core sees the thing, the way only core sees a run.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: constraints
+    attributes:
+      label: Does it need any of these
+      description: Each one is currently ruled out, so picking one is not fatal but it does become the discussion.
+      multiple: true
+      options:
+        - Dialect-specific SQL, so it runs on Postgres but not SQLite
+        - A Docker client inside core
+        - An in-process plugin API
+        - A workflow or DAG engine
+        - None of these
+    validations:
+      required: true
