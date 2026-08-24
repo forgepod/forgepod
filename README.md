@@ -27,9 +27,11 @@ plugins.
 calls them. `plugins/beam-mcp` is a sample plugin that carries numpy and scipy, there
 to prove a plugin's dependencies never reach the core.
 
-The admin has one page. It reads every directory under `plugins/` that holds a
-`plugin.json`, starts each plugin, and renders the tools it published as typed
-signatures, alongside the launch command used and how long the round trip took.
+The admin has one page. Scanning starts every plugin under `plugins/` that holds a
+`plugin.json` and records the tools each one publishes. The page renders that last
+reading as typed signatures, with the launch command used and how long the round trip
+took. Scanning happens when you ask, since starting every plugin is slow and has side
+effects.
 
 Needs Bun, and Python 3 for the sample plugin. A container runtime is optional and
 only the container test needs it.
@@ -87,11 +89,30 @@ def beam_reactions(span_m: float, load_kn: float, load_from_left_m: float) -> Re
 For a remote plugin, drop `command` and `image` and set `"transport": "http"` with a
 `url`.
 
+## Database
+
+SQLite by default, in `forgepod.db`, with no database server to install. Point
+`FORGEPOD_DATABASE_URL` at a `postgres://` URL to use Postgres instead.
+
+One schema and one set of queries serve both, and that only holds because nothing here
+uses dialect-specific SQL. JSON is stored as text rather than jsonb, timestamps are ISO
+strings, and every column is text or integer. `src/db/portability.test.ts` runs the same
+migration and round trip against SQLite and against real Postgres and fails if the two
+disagree, so the claim is checked rather than asserted.
+
+Vector search is the feature that would break this first. That is why it belongs in a
+plugin carrying its own store.
+
 ## Layout
 
-`src/` is the product and imports no web framework and no runtime-specific global. The
-Next app under `app/` is a delivery shell over it. `src/boundary.test.ts` enforces that,
-so the shell stays replaceable rather than load-bearing.
+`src/` is the product and imports no web framework. The Next app under `app/` is a
+delivery shell over it. `src/boundary.test.ts` enforces that, so the shell stays
+replaceable rather than load-bearing.
+
+One file is allowed to be runtime specific, `src/db/bun-sqlite.ts`, and the test names
+it explicitly. No SQLite binding works on both runtimes today: better-sqlite3 crashes
+Bun 1.3.14 and node:sqlite is unsupported there. That is why the app runs under Bun,
+which is what `bun --bun next start` in the scripts is for.
 
 ## Not built yet
 

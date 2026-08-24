@@ -1,16 +1,28 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
-import { installedPlugins, inspect, type Inspection } from "@/plugins/registry";
+import { database } from "@/db";
 import { formatParams, formatReturn, type Schema } from "@/plugins/signature";
+import { loadPlugins, type StoredPlugin, type StoredTool } from "@/plugins/store";
+import { rescan } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Plugins" };
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+function ago(iso: string): string {
+  const seconds = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${plural(minutes, "minute")} ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${plural(hours, "hour")} ago`;
+  return `${plural(Math.round(hours / 24), "day")} ago`;
+}
+
 export default async function PluginsPage() {
-  const plugins = await Promise.all((await installedPlugins()).map(inspect));
-  const tools = plugins.reduce((n, p) => n + (p.tools?.length ?? 0), 0);
-  const silent = plugins.filter((p) => !p.tools).length;
+  const plugins = await loadPlugins(await database());
+  const tools = plugins.reduce((n, p) => n + p.tools.length, 0);
+  const silent = plugins.filter((p) => p.error).length;
+  const scannedAt = plugins[0]?.scannedAt;
 
   return (
     <main className="sheet">
@@ -21,52 +33,53 @@ export default async function PluginsPage() {
 
       <div className="summary">
         <h1>Capabilities</h1>
-        <p className="tally">
-          {plural(plugins.length, "plugin")}, {plural(tools, "tool")} reachable
-          {silent > 0 ? `, ${silent} not answering` : ""}
-        </p>
+        <form action={rescan}>
+          <button type="submit" className="action">
+            {scannedAt ? "Scan again" : "Scan plugins"}
+          </button>
+        </form>
       </div>
 
+      <p className="tally">
+        {scannedAt
+          ? `${plural(plugins.length, "plugin")}, ${plural(tools, "tool")}${silent > 0 ? `, ${silent} not answering` : ""}, scanned ${ago(scannedAt)}`
+          : "Not scanned yet"}
+      </p>
+
       <p className="note">
-        {plugins.length === 0
-          ? "Nothing installed yet. Put a directory holding a plugin.json into plugins/ and reload."
-          : "Every signature below was read from the plugin itself when this page loaded."}
+        {scannedAt
+          ? "Scanning starts every plugin and reads what it publishes. What you see below is that last reading, not a live one."
+          : "Put a directory holding a plugin.json into plugins/, then scan. Each plugin is started once and asked what it can do."}
       </p>
 
       {plugins.map((plugin) => (
-        <PluginEntry key={plugin.dir} plugin={plugin} />
+        <PluginEntry key={plugin.name} plugin={plugin} />
       ))}
     </main>
   );
 }
 
-function PluginEntry({ plugin }: { plugin: Inspection }) {
-  const name = plugin.manifest?.name ?? plugin.dir;
-  const up = Boolean(plugin.tools);
+function PluginEntry({ plugin }: { plugin: StoredPlugin }) {
+  const up = !plugin.error;
 
   return (
     <section className="plugin">
       <div className="plugin-head">
         <h2>
-          {name}{" "}
-          {plugin.manifest ? <span className="version">{plugin.manifest.version}</span> : null}
+          {plugin.name} <span className="version">{plugin.version}</span>
         </h2>
         <span className={`state ${up ? "state-up" : "state-down"}`}>
-          {up ? `answered in ${plugin.ms}ms` : "no answer"}
+          {up ? `answered in ${plugin.roundTripMs}ms` : "no answer"}
         </span>
       </div>
 
-      {plugin.manifest?.description ? <p className="desc">{plugin.manifest.description}</p> : null}
+      {plugin.description ? <p className="desc">{plugin.description}</p> : null}
 
       <dl className="meta">
         <dt>source</dt>
-        <dd>{plugin.dir}</dd>
-        {plugin.launch ? (
-          <>
-            <dt>launch</dt>
-            <dd>{plugin.launch}</dd>
-          </>
-        ) : null}
+        <dd>{plugin.sourceDir}</dd>
+        <dt>launch</dt>
+        <dd>{plugin.launch}</dd>
       </dl>
 
       {plugin.error ? (
@@ -76,7 +89,7 @@ function PluginEntry({ plugin }: { plugin: Inspection }) {
         </div>
       ) : (
         <div className="tools">
-          {plugin.tools?.map((tool) => (
+          {plugin.tools.map((tool) => (
             <ToolSignature key={tool.name} tool={tool} />
           ))}
         </div>
@@ -85,7 +98,7 @@ function PluginEntry({ plugin }: { plugin: Inspection }) {
   );
 }
 
-function ToolSignature({ tool }: { tool: Tool }) {
+function ToolSignature({ tool }: { tool: StoredTool }) {
   const params = formatParams(tool.inputSchema as Schema);
   const returns = formatReturn(tool.outputSchema as Schema | undefined);
   // An untyped return is coloured like a fault, because for a caller it is one.

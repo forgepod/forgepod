@@ -246,3 +246,23 @@ code,
 .tool h3 {
   color: var(--temper-blue);
 }
+
+.action {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--steel-050);
+  background: var(--ink);
+  border: 0;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+}
+
+.action:hover {
+  background: var(--temper-blue);
+}
+
+.tally {
+  margin: 0.6rem 0 0;
+}

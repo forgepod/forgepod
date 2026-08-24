@@ -29,6 +29,11 @@ search is the usual casualty and belongs in a plugin that brings its own store.
 Core carries no Docker client. Launching a plugin in a container is a rewrite of its
 command and nothing else, because stdio makes the container's own streams the channel.
 
+Core carries no dialect-specific SQL, and that is tested, not trusted. JSON goes in as
+text, timestamps as ISO strings, columns are text or integer.
+`src/db/portability.test.ts` runs the same migration and round trip on SQLite and on
+real Postgres and fails when they disagree.
+
 Core carries no web framework. Everything under `src/` is plain TypeScript with no Next
 import and no Bun-only global, and the Next app under `app/` is a shell over it.
 `src/boundary.test.ts` fails the build if that slips. Next is a good fit today and has
