@@ -26,7 +26,13 @@ it is the version of this that makes people angry.
 "Contribution" means any work of authorship you intentionally submit to this
 repository, in any form, including any modification to existing work.
 
-**2. Copyright licence.** You grant the ForgePod project, and recipients of software
+"The Project" means ForgePod, whose rights are held by its maintainer, currently the
+individual holding the GitHub account [github.com/fajarhide](https://github.com/fajarhide),
+and any legal entity those rights are later assigned to under section 8. Naming a
+person rather than a project matters: a project is not an entity and cannot hold or
+enforce anything.
+
+**2. Copyright licence.** You grant the Project, and recipients of software
 distributed by it, a perpetual, worldwide, non-exclusive, royalty-free, irrevocable
 copyright licence to reproduce, prepare derivative works of, publicly display,
 publicly perform, sublicense and distribute your Contribution and such derivative
@@ -57,4 +63,9 @@ you are aware of, marked plainly in the submission.
 Except as required by law, you provide it "as is", without warranties or conditions of
 any kind.
 
-**7. Keep it accurate.** Tell the project if any statement here stops being true.
+**7. Keep it accurate.** Tell the Project if any statement here stops being true.
+
+**8. Assignment.** The Project may assign the rights granted here to a legal entity
+formed to hold them, including a company controlled by the maintainer. Everything in
+this agreement travels with that assignment unchanged, and you do not have to be asked
+again.
