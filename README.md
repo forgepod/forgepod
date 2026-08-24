@@ -39,8 +39,10 @@ is written in sections, `code-review` as a single prompt.
 ## What runs today
 
 `src/plugins/mcp.ts` connects to an MCP server over stdio or HTTP, lists its tools and
-calls them. `plugins/beam-mcp` is a sample plugin that carries numpy and scipy, there
-to prove a plugin's dependencies never reach the core.
+calls them. Two plugins ship. `plugins/beam-mcp` carries numpy and scipy, there to prove
+a plugin's dependencies never reach the core. `plugins/memory-mcp` keeps what an agent
+was told, in SQLite with FTS5 and no embeddings, scoped to the agent's slug: it is what
+proves a plugin can hold state and see who is calling it.
 
 The admin has one page. Scanning starts every plugin under `plugins/` that holds a
 `plugin.json` and records the tools each one publishes. The page renders that last
@@ -48,14 +50,14 @@ reading as typed signatures, with the launch command used and how long the round
 took. Scanning happens when you ask, since starting every plugin is slow and has side
 effects.
 
-Needs Bun, and Python 3 for the sample plugin. A container runtime is optional and
+Needs Bun, and Python 3 for the plugins that ship. A container runtime is optional and
 only the container test needs it.
 
 ```sh
 cp .env.example .env   # every setting the server reads, with what each one does
 bun install
-bun run plugin:setup   # a venv for the sample plugin, one time
-bun run plugin:image   # build the sample plugin's image, one time
+bun run plugin:setup   # a venv per plugin, one time
+bun run plugin:image   # build each plugin's image, one time
 bun test
 bun run dev            # admin at http://localhost:3000/admin/plugins
 ```

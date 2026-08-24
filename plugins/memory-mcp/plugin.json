@@ -1,0 +1,10 @@
+{
+  "name": "memory-mcp",
+  "version": "0.1.0",
+  "description": "What an agent has been told, kept between runs and scoped to that agent.",
+  "transport": "stdio",
+  "command": ".venv/bin/python",
+  "args": ["server.py"],
+  "image": "forgepod/memory-mcp:0.1.0",
+  "state": true
+}
