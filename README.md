@@ -120,6 +120,11 @@ internal continuity intact.
 SQLite by default, in `forgepod.db`, with no database server to install. Point
 `FORGEPOD_DATABASE_URL` at a `postgres://` URL to use Postgres instead.
 
+That default path is relative to the working directory, so a deployment should set
+`FORGEPOD_DATABASE_URL` explicitly. The production server starts from
+`.next/standalone`, and without the variable it creates an empty database there rather
+than finding the one you have been developing against.
+
 One schema and one set of queries serve both, and that only holds because nothing here
 uses dialect-specific SQL. JSON is stored as text rather than jsonb, timestamps are ISO
 strings, and every column is text or integer. `src/db/portability.test.ts` runs the same
