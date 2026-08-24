@@ -1,0 +1,9 @@
+{
+  "name": "beam-mcp",
+  "version": "0.1.0",
+  "description": "Statics for a simply supported beam.",
+  "transport": "stdio",
+  "command": ".venv/bin/python",
+  "args": ["server.py"],
+  "image": "hms/beam-mcp:0.1.0"
+}
