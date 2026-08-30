@@ -76,6 +76,29 @@ export type RunUsageRow = {
   output_tokens: number;
 };
 
+/**
+ * One row = one plugin tool called at one point in a run. A hook is not a second way to
+ * write a plugin: the handler is an ordinary MCP tool, and this table only records when
+ * core should call it.
+ *
+ * The binding is to an agent, not to an agent version, because a hook is operator
+ * configuration rather than part of what the agent says. Binding it to a version would
+ * drop a guardrail the moment someone edits a prompt and publishes. A null agent_id
+ * binds every agent in the install.
+ *
+ * Whether a hook is an action or a filter follows from its name, so it is not stored.
+ */
+export type HookBindingRow = {
+  id: string;
+  agent_id: string | null;
+  hook_name: string;
+  plugin_name: string;
+  tool_name: string;
+  /** Lower runs first, the usual convention. Ties break on created_at. */
+  priority: number;
+  created_at: string;
+};
+
 /** One row per install-wide fact. Keyed by name so adding one needs no migration. */
 export type SettingRow = {
   key: string;
@@ -92,4 +115,5 @@ export type Schema = {
   runs: RunRow;
   run_steps: RunStepRow;
   run_usage: RunUsageRow;
+  hook_bindings: HookBindingRow;
 };

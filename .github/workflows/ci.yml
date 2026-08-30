@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      # Two plugin tests refuse to run without their virtualenv rather than skipping,
+      # because a Python plugin answering is the claim they exist to check.
+      - run: bun run plugin:setup
+      # The boundary and portability tests are the two that decide whether core stayed
+      # portable, and they run here with no container runtime. The tests that need an
+      # image skip themselves, which is why this job is not proof a container still
+      # launches.
+      - run: bun test
+      - run: bun run build

@@ -1,6 +1,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import { expect, test } from "bun:test";
 import { Kysely, PGliteDialect } from "kysely";
+import { bindHook, listBindings, trustPlugin } from "../agents/hooks";
 import type { Inspection } from "../plugins/registry";
 import { loadPlugins, saveScan } from "../plugins/store";
 import { BunSqliteDialect } from "./bun-sqlite";
@@ -83,3 +84,50 @@ test("json schemas survive the round trip as objects, not as strings", async () 
 
   await db.destroy();
 });
+
+async function hookRoundTrip(db: Kysely<Schema>) {
+  await migrate(db);
+  await db
+    .insertInto("agents")
+    .values({
+      id: "agent_1",
+      slug: "beam-checker",
+      name: "Beam checker",
+      created_at: scannedAt,
+      published_version_id: null,
+    })
+    .execute();
+
+  await trustPlugin(db, "guard-mcp");
+  await bindHook(
+    db,
+    { agentId: "agent_1", hook: "tool.before_call", pluginName: "guard-mcp", toolName: "on_call", priority: 1 },
+    scannedAt,
+  );
+  await bindHook(
+    db,
+    { agentId: null, hook: "run.after", pluginName: "audit-mcp", toolName: "on_run_after" },
+    scannedAt,
+  );
+
+  // The id is generated per row, so it cannot take part in the comparison.
+  const bindings = (await listBindings(db, "agent_1")).map(({ id, ...rest }) => rest);
+  const trusted = await db.selectFrom("settings").selectAll().orderBy("key").execute();
+
+  await db.destroy();
+  return { bindings, trusted };
+}
+
+test("hook bindings and plugin trust read back the same on both dialects", async () => {
+  const sqlite = await hookRoundTrip(
+    new Kysely<Schema>({ dialect: new BunSqliteDialect(":memory:") }),
+  );
+  const postgres = await hookRoundTrip(
+    new Kysely<Schema>({ dialect: new PGliteDialect({ pglite: new PGlite() }) }),
+  );
+
+  expect(sqlite).toEqual(postgres);
+  expect(sqlite.bindings.map((b) => b.hook)).toEqual(["tool.before_call", "run.after"]);
+  expect(sqlite.bindings[1]?.agentId).toBeNull();
+  expect(sqlite.trusted).toEqual([{ key: "plugin_trust:guard-mcp", value: "trusted" }]);
+}, 60_000);

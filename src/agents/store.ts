@@ -45,8 +45,25 @@ export type AgentDetail = {
  * call time rather than frozen at import, because the install that sets it is the same
  * one that chooses a provider: an install pointed at a gateway has no Anthropic model
  * ids, and every agent it creates would otherwise be born on one it cannot call.
+ *
+ * That case refuses to guess. An install with a base URL set is talking to a gateway
+ * whose model ids are its own, so the built-in default is wrong there by construction,
+ * and falling through would create an agent that only fails later, on its first run,
+ * with the gateway's wording rather than the variable name that fixes it.
  */
-export const defaultModel = () => process.env.FORGEPOD_DEFAULT_MODEL?.trim() || "claude-opus-5";
+export function defaultModel(env: Record<string, string | undefined> = process.env): string {
+  const named = env.FORGEPOD_DEFAULT_MODEL?.trim();
+  if (named) return named;
+
+  if (env.FORGEPOD_BASE_URL?.trim()) {
+    throw new Error(
+      "FORGEPOD_BASE_URL is set, so FORGEPOD_DEFAULT_MODEL has to be set as well: " +
+        "the built-in default is an Anthropic model id, and a gateway serves its own.",
+    );
+  }
+
+  return "claude-opus-5";
+}
 
 const slugify = (name: string) =>
   name

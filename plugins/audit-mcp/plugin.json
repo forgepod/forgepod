@@ -1,0 +1,10 @@
+{
+  "name": "audit-mcp",
+  "version": "0.1.0",
+  "description": "Writes what a run did to an audit log. The reference hook handler.",
+  "transport": "stdio",
+  "command": "python3",
+  "args": ["server.py"],
+  "image": "forgepod/audit-mcp:0.1.0",
+  "state": true
+}
