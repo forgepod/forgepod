@@ -1,0 +1,23 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      # The boundary and portability tests are the two that decide whether core stayed
+      # portable, and they run here with no container runtime. The plugin tests skip
+      # themselves when no image is built, which is why this job is not proof a plugin
+      # still launches.
+      - run: bun test
+      - run: bun run build

@@ -42,7 +42,8 @@ is written in sections, `code-review` as a single prompt.
 calls them. Three plugins ship. `plugins/beam-mcp` carries numpy and scipy, there to prove
 a plugin's dependencies never reach the core. `plugins/memory-mcp` keeps what an agent was
 told, in SQLite with FTS5 and no embeddings, scoped to the install and the agent's slug: it
-is what proves a plugin can hold state and see who is calling it. `plugins/csv-mcp` is PHP
+is what proves a plugin can hold state and see who is calling it. `plugins/audit-mcp` is the reference hook handler, in Python with no
+dependency at all. `plugins/csv-mcp` is PHP
 with no MCP library at all, answering JSON-RPC by hand, which is what proves the core has
 no plugin API of its own to conform to.
 
@@ -132,6 +133,49 @@ def beam_reactions(span_m: float, load_kn: float, load_from_left_m: float) -> Re
 For a remote plugin, drop `command` and `image` and set `"transport": "http"` with a
 `url`.
 
+## Hooks
+
+A run has five points a plugin can be called at. This is what makes the core extensible
+without a plugin API: a hook handler is an ordinary MCP tool, so anything that can be a
+plugin can already be a hook.
+
+| hook | kind | what it is for |
+| --- | --- | --- |
+| `run.before` | action | a run is starting |
+| `tool.after_call` | action | a tool answered |
+| `run.after` | action | the run is finished and its row is final |
+| `run.error` | action | the run failed |
+| `tool.before_call` | filter | decide whether a tool call runs, and with what input |
+| `run.before_provider_call` | filter | rewrite the system prompt for this turn |
+
+An action is told what happened and cannot change it. A handler that fails is recorded
+against the run as a note, and the run continues.
+
+A filter is asked, and its answer decides what happens next. It replies with one object:
+
+```jsonc
+{ "action": "allow" }
+{ "action": "block", "reason": "waiting on an approval" }
+{ "action": "modify", "value": { "amount": 500 } }   // value replaces what was filtered
+```
+
+Anything else, a crash included, blocks. A guardrail that cannot answer has not allowed
+anything. Handlers run in priority order, lowest first, and each one is asked about what
+the previous returned, so a redaction filter and an approval filter compose without
+knowing about each other.
+
+That is the whole mechanism. Approval before a risky call, an audit trail, PII redaction
+and per-tool policy are plugins bound to these points, not core features, because which
+calls are risky is a question only a domain can answer.
+
+Because a filter sits in front of every tool call an agent makes, a plugin has to be
+marked trusted on `/admin/plugins` before it can bind to one. Actions are open to any
+plugin. Trust is granted by whoever runs the install and never by the plugin.
+
+Bind and unbind on the agent's page. A binding belongs to the agent rather than to its
+version, so publishing a new version never drops a guardrail. `plugins/audit-mcp` is the
+reference: two handlers, one of each kind, in a file with no dependencies.
+
 An agent is a system prompt, a model and the tools it may call. The editor at
 `/admin/agents` binds tools by their published signature, and saving publishes a new
 version, so a run always records the exact configuration it executed. The same page
@@ -198,7 +242,9 @@ which is what `bun --bun next start` in the scripts is for.
 
 ## Not built yet
 
-Agent assignment, quotas, guardrails, and everything billing. A template carries no UI
+Agent assignment, quotas, and everything billing. Guardrails have a mechanism now, the
+filter hooks above, but no policy plugin ships: the only handler in the tree is the audit
+one, which watches and allows. A template carries no UI
 configuration, and declares no storage of its own: a vertical that needs either owns it
 in a plugin.
 Version history is recorded but there is no way to view or roll back to an old version

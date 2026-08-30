@@ -2,7 +2,8 @@ import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Kysely } from "kysely";
 import type { Schema } from "../db/schema";
 import { installId } from "../db/install";
-import { connect, PluginManifest } from "../plugins/mcp";
+import { connect, PluginManifest, resultValue } from "../plugins/mcp";
+import { applyFilter, fireAction, loadBindings, type Invoke } from "./hooks";
 import type { Exchange, Provider, ToolOutcome } from "./provider";
 import type { BoundToolRef } from "./store";
 
@@ -157,12 +158,48 @@ export async function runAgent(args: {
       .execute();
   };
 
-  const clientFor = async (tool: RunnableTool): Promise<Client> => {
-    const existing = open.get(tool.pluginName);
+  // Keyed by plugin, not by tool, because a hook handler's plugin is often not one the
+  // agent can call, and both go down the same connection when they are the same plugin.
+  const launchers = new Map(
+    tools.map((t) => [t.pluginName, { manifest: t.manifest, sourceDir: t.sourceDir }]),
+  );
+
+  const clientFor = async (pluginName: string): Promise<Client> => {
+    const existing = open.get(pluginName);
     if (existing) return existing;
-    const opened = await connect(tool.manifest, { identity, cwd: tool.sourceDir });
-    open.set(tool.pluginName, opened);
+
+    let launcher = launchers.get(pluginName);
+    if (!launcher) {
+      const row = await db
+        .selectFrom("plugins")
+        .select(["manifest", "source_dir"])
+        .where("name", "=", pluginName)
+        .executeTakeFirst();
+      if (!row) throw new Error(`${pluginName} is bound to a hook but is not installed`);
+      launcher = {
+        manifest: PluginManifest.parse(JSON.parse(row.manifest)),
+        sourceDir: row.source_dir,
+      };
+      launchers.set(pluginName, launcher);
+    }
+
+    const opened = await connect(launcher.manifest, { identity, cwd: launcher.sourceDir });
+    open.set(pluginName, opened);
     return opened;
+  };
+
+  const bindings = await loadBindings(db, version.agentId);
+  const context = { runId, agentSlug: version.slug };
+  const warn = (text: string) => record({ kind: "note", text });
+
+  /** A handler is an ordinary tool call, so a hook needs nothing a plugin does not have. */
+  const invoke: Invoke = async (binding, payload) => {
+    const client = await clientFor(binding.pluginName);
+    const result = await client.callTool({ name: binding.toolName, arguments: payload });
+    // A handler that reports failure has not answered, and for a filter that is the
+    // difference between fail-closed and quietly allowing whatever it was asked about.
+    if (result.isError === true) throw new Error(String(resultValue(result)));
+    return resultValue(result);
   };
 
   const unavailable = args.unavailable ?? [];
@@ -173,14 +210,30 @@ export async function runAgent(args: {
     await record({ kind: "note", text: `${count} unavailable and not offered: ${named}` });
   }
 
+  await fireAction(bindings, "run.before", { ...context, input }, invoke, warn);
+
   try {
     for (let turn = 0; ; turn++) {
       if (turn >= maxTurns) throw new Error(`stopped after ${maxTurns} turns without an answer`);
 
+      // Re-filtered every turn from the agent's own prompt, so a handler that adds
+      // context for one turn does not have it compound over the next.
+      const gate = await applyFilter({
+        bindings,
+        hook: "run.before_provider_call",
+        value: version.systemPrompt,
+        payloadFor: (system) => ({ ...context, turn, system }),
+        invoke,
+      });
+      if ("blocked" in gate) throw new Error(gate.blocked);
+      if (typeof gate.value !== "string") {
+        throw new Error("hook run.before_provider_call: a system prompt has to be text");
+      }
+
       const turnResult = await provider.send(
         {
           model: version.model,
-          system: version.systemPrompt,
+          system: gate.value,
           history,
           tools: tools.map((tool) => ({
             name: tool.apiName,
@@ -225,20 +278,60 @@ export async function runAgent(args: {
           continue;
         }
 
-        try {
-          const result = await (
-            await clientFor(tool)
-          ).callTool({ name: tool.toolName, arguments: call.input as Record<string, unknown> });
+        const gate = await applyFilter({
+          bindings,
+          hook: "tool.before_call",
+          value: call.input,
+          payloadFor: (input) => ({ ...context, call: { tool: call.name, input } }),
+          invoke,
+        });
 
-          const output = result.structuredContent ?? result.content;
-          const failed = result.isError === true;
-          await record({ kind: "tool_result", tool: call.name, output, isError: failed });
-          results.push({ id: call.id, content: JSON.stringify(output), isError: failed });
-        } catch (e) {
-          const message = e instanceof Error ? e.message : String(e);
-          await record({ kind: "tool_result", tool: call.name, output: message, isError: true });
-          results.push({ id: call.id, content: message, isError: true });
+        if ("blocked" in gate) {
+          // Two records, because they answer different questions. The note says core
+          // stopped the call, and the tool result is what the model is told about it.
+          await record({ kind: "note", text: `${call.name} blocked: ${gate.blocked}` });
+          await record({ kind: "tool_result", tool: call.name, output: gate.blocked, isError: true });
+          results.push({ id: call.id, content: gate.blocked, isError: true });
+          continue;
         }
+        const input = gate.value as Record<string, unknown>;
+
+        const outcome = await (async () => {
+          try {
+            const result = await (await clientFor(tool.pluginName)).callTool({
+              name: tool.toolName,
+              arguments: input,
+            });
+            const output = result.structuredContent ?? result.content;
+            return {
+              output,
+              content: JSON.stringify(output),
+              isError: result.isError === true,
+            };
+          } catch (e) {
+            const message = e instanceof Error ? e.message : String(e);
+            return { output: message as unknown, content: message, isError: true };
+          }
+        })();
+
+        await record({
+          kind: "tool_result",
+          tool: call.name,
+          output: outcome.output,
+          isError: outcome.isError,
+        });
+        results.push({ id: call.id, content: outcome.content, isError: outcome.isError });
+        await fireAction(
+          bindings,
+          "tool.after_call",
+          {
+            ...context,
+            call: { tool: call.name, input },
+            result: { output: outcome.output, isError: outcome.isError },
+          },
+          invoke,
+          warn,
+        );
       }
 
       history.push({ role: "assistant", raw: turnResult.raw });
@@ -246,15 +339,29 @@ export async function runAgent(args: {
     }
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
+  }
+
+  // The closing hooks run after the row is final, so a handler that reads the run back
+  // sees what everyone else will, and the plugins stay open until they have all fired.
+  try {
+    await db
+      .updateTable("runs")
+      .set({ status: error ? "failed" : "completed", ended_at: now(), error })
+      .where("id", "=", runId)
+      .execute();
+
+    const status = error ? "failed" : "completed";
+    await fireAction(
+      bindings,
+      "run.after",
+      { ...context, status, answer, error, inputTokens, outputTokens },
+      invoke,
+      warn,
+    );
+    if (error) await fireAction(bindings, "run.error", { ...context, error }, invoke, warn);
   } finally {
     await Promise.all([...open.values()].map((c) => c.close().catch(() => undefined)));
   }
-
-  await db
-    .updateTable("runs")
-    .set({ status: error ? "failed" : "completed", ended_at: now(), error })
-    .where("id", "=", runId)
-    .execute();
 
   return { runId, answer, steps, inputTokens, outputTokens, error };
 }

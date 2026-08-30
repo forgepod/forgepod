@@ -133,6 +133,33 @@ export const launchEnv = (manifest: StdioManifest, opts: LaunchOptions = {}) => 
   ...opts.identity,
 });
 
+/**
+ * What a tool answered, as a value. Structured output when the plugin declares one,
+ * otherwise its single text block parsed as JSON when it is JSON. Hook handlers reply
+ * with a small object, and a plugin written without an MCP library returns it as text.
+ */
+export function resultValue(result: unknown): unknown {
+  // Typed loosely because the SDK's return type is a union that still carries a legacy
+  // shape, and narrowing it here would spread that union to every caller.
+  const { structuredContent, content } = (result ?? {}) as {
+    structuredContent?: unknown;
+    content?: unknown;
+  };
+  if (structuredContent !== undefined) return structuredContent;
+
+  if (Array.isArray(content) && content.length === 1) {
+    const only = content[0] as { type?: string; text?: string };
+    if (only?.type === "text" && typeof only.text === "string") {
+      try {
+        return JSON.parse(only.text);
+      } catch {
+        return only.text;
+      }
+    }
+  }
+  return content;
+}
+
 export async function connect(
   manifest: PluginManifest,
   opts: LaunchOptions = {},

@@ -1,9 +1,10 @@
+import { isTrusted } from "@/agents/hooks";
 import { database } from "@/db";
 import { formatParams, formatReturn, type Schema } from "@/plugins/signature";
 import { loadPlugins, type StoredPlugin, type StoredTool } from "@/plugins/store";
 import { Masthead } from "../../masthead";
 import { PageHeader } from "../../page-header";
-import { rescan } from "./actions";
+import { rescan, setTrust } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Plugins" };
@@ -21,7 +22,12 @@ function ago(iso: string): string {
 }
 
 export default async function PluginsPage() {
-  const plugins = await loadPlugins(await database());
+  const db = await database();
+  const plugins = await loadPlugins(db);
+  const trusted = new Set(
+    (await Promise.all(plugins.map(async (p) => ((await isTrusted(db, p.name)) ? p.name : ""))))
+      .filter(Boolean),
+  );
   const tools = plugins.reduce((n, p) => n + p.tools.length, 0);
   const silent = plugins.filter((p) => p.error).length;
   const scannedAt = plugins[0]?.scannedAt;
@@ -52,13 +58,13 @@ export default async function PluginsPage() {
       </p>
 
       {plugins.map((plugin) => (
-        <PluginEntry key={plugin.name} plugin={plugin} />
+        <PluginEntry key={plugin.name} plugin={plugin} trusted={trusted.has(plugin.name)} />
       ))}
     </main>
   );
 }
 
-function PluginEntry({ plugin }: { plugin: StoredPlugin }) {
+function PluginEntry({ plugin, trusted }: { plugin: StoredPlugin; trusted: boolean }) {
   const up = !plugin.error;
 
   return (
@@ -80,6 +86,19 @@ function PluginEntry({ plugin }: { plugin: StoredPlugin }) {
         <dt>launch</dt>
         <dd>{plugin.launch}</dd>
       </dl>
+
+      <form action={setTrust} className="row">
+        <input type="hidden" name="plugin" value={plugin.name} />
+        <input type="hidden" name="trusted" value={trusted ? "no" : "yes"} />
+        <span className="hint">
+          {trusted
+            ? "Trusted: may filter every tool call an agent makes."
+            : "Sandboxed: may react to a run, but not decide what it runs."}
+        </span>
+        <button type="submit" className="action-quiet">
+          {trusted ? "Withdraw trust" : "Trust"}
+        </button>
+      </form>
 
       {plugin.error ? (
         <div className="failure">

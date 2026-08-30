@@ -176,3 +176,14 @@ test("publishing again outside a transaction still increments the version", asyn
 
   await db.destroy();
 });
+
+test("an install pointed at a gateway has to name the model its agents are born on", () => {
+  expect(defaultModel({})).toBe("claude-opus-5");
+  expect(defaultModel({ FORGEPOD_DEFAULT_MODEL: "some-gateway-model" })).toBe("some-gateway-model");
+
+  // Silently handing a gateway an Anthropic id produces an agent that only fails on its
+  // first run, with the gateway's wording rather than the variable that fixes it.
+  expect(() => defaultModel({ FORGEPOD_BASE_URL: "https://gateway.example/v1" })).toThrow(
+    /FORGEPOD_DEFAULT_MODEL/,
+  );
+});

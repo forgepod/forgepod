@@ -104,4 +104,19 @@ export async function migrate(db: Kysely<Schema>): Promise<void> {
     .addColumn("output_tokens", "integer", (c) => c.notNull())
     .addPrimaryKeyConstraint("run_usage_pk", ["run_id", "seq"])
     .execute();
+
+  // plugin_name carries no foreign key on purpose. A scan replaces every plugin row, so
+  // a plugin that is briefly missing from disk would otherwise take its bindings with
+  // it, which is the mistake already learned once with agent_tools.
+  await db.schema
+    .createTable("hook_bindings")
+    .ifNotExists()
+    .addColumn("id", "text", (c) => c.primaryKey())
+    .addColumn("agent_id", "text", (c) => c.references("agents.id").onDelete("cascade"))
+    .addColumn("hook_name", "text", (c) => c.notNull())
+    .addColumn("plugin_name", "text", (c) => c.notNull())
+    .addColumn("tool_name", "text", (c) => c.notNull())
+    .addColumn("priority", "integer", (c) => c.notNull())
+    .addColumn("created_at", "text", (c) => c.notNull())
+    .execute();
 }
