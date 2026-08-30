@@ -15,9 +15,12 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
+      # Two plugin tests refuse to run without their virtualenv rather than skipping,
+      # because a Python plugin answering is the claim they exist to check.
+      - run: bun run plugin:setup
       # The boundary and portability tests are the two that decide whether core stayed
-      # portable, and they run here with no container runtime. The plugin tests skip
-      # themselves when no image is built, which is why this job is not proof a plugin
-      # still launches.
+      # portable, and they run here with no container runtime. The tests that need an
+      # image skip themselves, which is why this job is not proof a container still
+      # launches.
       - run: bun test
       - run: bun run build
