@@ -234,6 +234,11 @@ code,
   font-size: 0.85rem;
 }
 
+/* An approval is a question, not a failure, so it does not wear the error colour. */
+.asking {
+  border-left-color: var(--temper-blue);
+}
+
 .failure p {
   margin: 0;
 }

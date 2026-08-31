@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { database } from "@/db";
 import { bindHook, unbindHook, type HookName } from "@/agents/hooks";
 import { createAgent, deleteAgent, loadAgent, publishVersion, type BoundToolRef } from "@/agents/store";
+import { resolveApproval } from "@/plugins/approvals";
 
 const parseTools = (form: FormData): BoundToolRef[] =>
   form
@@ -83,4 +84,28 @@ export async function unbindHookAction(form: FormData): Promise<void> {
   await unbindHook(await database(), String(form.get("binding")));
   revalidatePath(`/admin/agents/${id}`);
   redirect(`/admin/agents/${id}`);
+}
+
+/**
+ * The operator's answer to a call a plugin is holding. Core carries the answer to the
+ * plugin and stores nothing: which calls need one, and what an answer means, are the
+ * plugin's own business.
+ */
+export async function resolveApprovalAction(form: FormData): Promise<void> {
+  const id = String(form.get("id"));
+
+  let failure: string | null = null;
+  try {
+    await resolveApproval(
+      await database(),
+      String(form.get("plugin")),
+      Number(form.get("approval")),
+      String(form.get("decision")),
+    );
+  } catch (e) {
+    failure = e instanceof Error ? e.message : String(e);
+  }
+
+  revalidatePath(`/admin/agents/${id}`);
+  redirect(failure ? `/admin/agents/${id}?hookError=${encodeURIComponent(failure)}` : `/admin/agents/${id}`);
 }

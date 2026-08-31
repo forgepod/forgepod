@@ -1,17 +1,21 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { appendText, readEvents, type LiveStep } from "@/agents/stream";
 import type { RunRecord } from "@/agents/store";
+import type { Pending } from "@/plugins/approvals";
+import { resolveApprovalAction } from "../actions";
 
 export function RunPanel({
   agentId,
   stored,
+  held,
   hasTools,
 }: {
   agentId: string;
   stored: RunRecord | null;
+  held: Pending[];
   hasTools: boolean;
 }) {
   const router = useRouter();
@@ -65,6 +69,16 @@ export function RunPanel({
   const steps: LiveStep[] = showStored
     ? (stored.steps.filter((s) => s.kind !== "text" || s.text.trim() !== "") as LiveStep[])
     : live;
+
+  // A card belongs where the call was refused, not in a list of its own, so the run
+  // around it stays readable. Matched by tool in the order the calls were made, since
+  // that is the order the plugin recorded them in.
+  const waiting = showStored ? [...held] : [];
+  const cards = steps.map((step) => {
+    if (step.kind !== "tool_result" || !step.isError) return null;
+    const at = waiting.findIndex((p) => p.tool === step.tool);
+    return at === -1 ? null : waiting.splice(at, 1)[0];
+  });
 
   return (
     <section className="plugin">
@@ -125,18 +139,51 @@ export function RunPanel({
                 </code>
               </pre>
             ) : (
-              <pre className={`sig ${step.isError ? "sig-error" : ""}`} key={index}>
-                <code>
-                  {"→ "}
-                  <span className={step.isError ? "untyped" : "ret"}>
-                    {JSON.stringify(step.output)}
-                  </span>
-                </code>
-              </pre>
+              <Fragment key={index}>
+                <pre className={`sig ${step.isError ? "sig-error" : ""}`}>
+                  <code>
+                    {"→ "}
+                    <span className={step.isError ? "untyped" : "ret"}>
+                      {JSON.stringify(step.output)}
+                    </span>
+                  </code>
+                </pre>
+                {cards[index] ? <Card held={cards[index]} agentId={agentId} /> : null}
+              </Fragment>
             ),
           )}
         </div>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * Three answers, no modal, and refusing is one of them. The action still reads as a tool
+ * call and its arguments, which is what #33 is for; the sentence lands with that work
+ * rather than being guessed at here.
+ */
+function Card({ held, agentId }: { held: Pending; agentId: string }) {
+  return (
+    <div className="failure asking">
+      <p>
+        Agent wants to call {held.tool}({JSON.stringify(held.input)})
+      </p>
+      <form action={resolveApprovalAction} className="row">
+        <input type="hidden" name="id" value={agentId} />
+        <input type="hidden" name="plugin" value={held.plugin} />
+        <input type="hidden" name="approval" value={held.id} />
+        <button type="submit" name="decision" value="refuse" className="action-quiet">
+          Refuse
+        </button>
+        <button type="submit" name="decision" value="allow_once" className="action">
+          Allow once
+        </button>
+        <button type="submit" name="decision" value="always" className="action-quiet">
+          Always allow
+        </button>
+        <span className="hint">An answer applies to the next run of this agent.</span>
+      </form>
+    </div>
   );
 }
