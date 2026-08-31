@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { copyFile, mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Kysely } from "kysely";
@@ -131,6 +131,42 @@ test.skipIf(!python)(
       tools: [{ pluginName: "files-mcp", toolName: "write" }],
     });
 
+    // audit-mcp is here to read the run.after payload back, since a filter plugin sees
+    // only what it blocked itself and the point of blockedCalls is that core saw it all.
+    const auditDir = await mkdtemp(join(tmpdir(), "forgepod-guard-audit-"));
+    await copyFile("plugins/audit-mcp/server.py", join(auditDir, "server.py"));
+    await db
+      .insertInto("plugins")
+      .values({
+        name: "audit-mcp",
+        version: "0.1.0",
+        description: null,
+        transport: "stdio",
+        launch: "",
+        manifest: JSON.stringify({ ...manifest, name: "audit-mcp" }),
+        source_dir: auditDir,
+        scanned_at: "2026-08-31T00:00:00.000Z",
+        round_trip_ms: null,
+        error: null,
+      })
+      .execute();
+    await db
+      .insertInto("plugin_tools")
+      .values({
+        plugin_name: "audit-mcp",
+        name: "on_run_after",
+        description: null,
+        input_schema: JSON.stringify({ type: "object" }),
+        output_schema: null,
+      })
+      .execute();
+    await bindHook(db, {
+      agentId,
+      hook: "run.after",
+      pluginName: "audit-mcp",
+      toolName: "on_run_after",
+    });
+
     await trustPlugin(db, "guard-mcp");
     await bindHook(db, {
       agentId,
@@ -153,6 +189,12 @@ test.skipIf(!python)(
     // Blocked, not failed: the model gets the reason and keeps going.
     expect(outcome.error).toBeNull();
     expect(outcome.answer).toBe("I am not allowed to write here.");
+
+    // A handler on run.after is told what was refused, without reading the transcript.
+    const logged = JSON.parse(await readFile(join(auditDir, "state", "audit.jsonl"), "utf8"));
+    expect(logged.blockedCalls).toEqual([
+      { tool: "files-mcp__write", reason: "files-mcp__write is not allowed here: read-only install" },
+    ]);
 
     await db.destroy();
   },
