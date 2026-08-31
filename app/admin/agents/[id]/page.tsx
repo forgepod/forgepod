@@ -4,6 +4,7 @@ import { database } from "@/db";
 import { HOOKS, isFilterHook, listBindings, type StoredBinding } from "@/agents/hooks";
 import { latestRun, loadAgent } from "@/agents/store";
 import { formatParams, formatReturn, type Schema } from "@/plugins/signature";
+import { pendingApprovals } from "@/plugins/approvals";
 import { loadPlugins } from "@/plugins/store";
 import { Masthead } from "../../../masthead";
 import { PageHeader } from "../../../page-header";
@@ -30,6 +31,9 @@ export default async function AgentPage({
   const plugins = await loadPlugins(db);
   const run = await latestRun(db, id);
   const bindings = await listBindings(db, id);
+  // Only for the run on screen: a card belongs where the call would have been, and
+  // asking every approval plugin costs a plugin launch.
+  const held = run ? await pendingApprovals(db, run.id) : [];
   const bound = new Set(agent.tools.map((t) => `${t.pluginName}::${t.toolName}`));
   const toolCount = plugins.reduce((n, p) => n + p.tools.length, 0);
   // A binding survives a rescan, so it can outlive the tool it names. Saying so here is
@@ -133,7 +137,12 @@ export default async function AgentPage({
         failure={hookError}
       />
 
-      <RunPanel agentId={agent.id} stored={run} hasTools={agent.tools.length > 0} />
+      <RunPanel
+        agentId={agent.id}
+        stored={run}
+        held={held}
+        hasTools={agent.tools.length > 0}
+      />
 
       <form action={deleteAgentAction} className="danger-zone">
         <input type="hidden" name="id" value={agent.id} />

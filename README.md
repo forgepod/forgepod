@@ -195,6 +195,13 @@ resuming the one that stopped: holding the connection open would pin the run and
 plugin it has launched for as long as the person takes to look, and resuming a stopped
 run means core persisting its whole loop state, which is a separate decision.
 
+The agent's page shows what is being held as a card in the run, in the place the call
+would have taken, with refuse and allow and always allow on it. Core finds the plugin by
+the pair of tools it publishes, `list_pending` and `resolve`, so it never learns a
+plugin's name; a plugin publishing that pair is asking to be answered from the admin.
+That is the only route from a page to a plugin's tool, and everything else a plugin
+publishes stays reachable only from inside a run.
+
 An agent is a system prompt, a model and the tools it may call. The editor at
 `/admin/agents` binds tools by their published signature, and saving publishes a new
 version, so a run always records the exact configuration it executed. The same page

@@ -67,6 +67,7 @@ PENDING = {
         "agent": {"type": "string"},
         "tool": {"type": "string"},
         "input": {"type": "object"},
+        "runId": {"type": "string"},
         "requestedAt": {"type": "string"},
     },
     "required": ["id", "agent", "tool", "requestedAt"],
@@ -185,7 +186,10 @@ def before_call(arguments):
 
 
 def list_pending(agent=None):
-    query = "SELECT id, agent, tool, input, requested_at FROM approvals WHERE status = 'pending'"
+    query = (
+        "SELECT id, agent, tool, input, run_id, requested_at FROM approvals"
+        " WHERE status = 'pending'"
+    )
     params = ()
     if agent:
         query += " AND agent = ?"
@@ -201,6 +205,9 @@ def list_pending(agent=None):
                 "agent": row["agent"],
                 "tool": row["tool"],
                 "input": json.loads(row["input"]),
+                # The run the call was refused in, so the admin can put the card back
+                # where the call would have been rather than in a list of its own.
+                "runId": row["run_id"],
                 "requestedAt": row["requested_at"],
             }
             for row in rows
