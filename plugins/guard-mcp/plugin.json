@@ -1,0 +1,10 @@
+{
+  "name": "guard-mcp",
+  "version": "0.1.0",
+  "description": "Refuses the tool calls an operator forbade, and stops a run that loops on a failing tool.",
+  "transport": "stdio",
+  "command": "python3",
+  "args": ["server.py"],
+  "image": "forgepod/guard-mcp:0.1.0",
+  "state": true
+}
