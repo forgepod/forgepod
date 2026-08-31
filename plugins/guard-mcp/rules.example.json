@@ -1,0 +1,7 @@
+{
+  "rules": [
+    { "tool": "files-mcp__write", "block": "read-only install" },
+    { "tool": "*", "maxInputBytes": 20000 },
+    { "tool": "*", "maxConsecutiveFailures": 3 }
+  ]
+}

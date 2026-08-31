@@ -39,11 +39,12 @@ is written in sections, `code-review` as a single prompt.
 ## What runs today
 
 `src/plugins/mcp.ts` connects to an MCP server over stdio or HTTP, lists its tools and
-calls them. Three plugins ship. `plugins/beam-mcp` carries numpy and scipy, there to prove
+calls them. Five plugins ship. `plugins/beam-mcp` carries numpy and scipy, there to prove
 a plugin's dependencies never reach the core. `plugins/memory-mcp` keeps what an agent was
 told, in SQLite with FTS5 and no embeddings, scoped to the install and the agent's slug: it
 is what proves a plugin can hold state and see who is calling it. `plugins/audit-mcp` is the reference hook handler, in Python with no
-dependency at all. `plugins/csv-mcp` is PHP
+dependency at all. `plugins/guard-mcp` is the guardrail: it refuses the tool calls an
+operator listed as forbidden and ends a run that keeps calling a tool that fails. `plugins/csv-mcp` is PHP
 with no MCP library at all, answering JSON-RPC by hand, which is what proves the core has
 no plugin API of its own to conform to.
 
@@ -175,6 +176,14 @@ plugin. Trust is granted by whoever runs the install and never by the plugin.
 Bind and unbind on the agent's page. A binding belongs to the agent rather than to its
 version, so publishing a new version never drops a guardrail. `plugins/audit-mcp` is the
 reference: two handlers, one of each kind, in a file with no dependencies.
+
+`plugins/guard-mcp` is what a written limit looks like once it is enforced. Its rules are
+a JSON file in the plugin's own state directory rather than core schema, because which
+calls are risky is a question only the operator can answer. A forbidden tool and an
+oversized input are refused at `tool.before_call`, and a tool that fails the same way
+several turns running ends the run at `run.before_provider_call`, which is a count only a
+plugin with its own state can keep. Copy `plugins/guard-mcp/rules.example.json` to
+`state/rules.json` to configure it.
 
 An agent is a system prompt, a model and the tools it may call. The editor at
 `/admin/agents` binds tools by their published signature, and saving publishes a new
