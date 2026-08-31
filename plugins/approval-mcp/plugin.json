@@ -1,0 +1,10 @@
+{
+  "name": "approval-mcp",
+  "version": "0.1.0",
+  "description": "Blocks a risky tool call until a human answers, then allows it on the next run.",
+  "transport": "stdio",
+  "command": "python3",
+  "args": ["server.py"],
+  "image": "forgepod/approval-mcp:0.1.0",
+  "state": true
+}

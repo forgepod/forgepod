@@ -39,12 +39,13 @@ is written in sections, `code-review` as a single prompt.
 ## What runs today
 
 `src/plugins/mcp.ts` connects to an MCP server over stdio or HTTP, lists its tools and
-calls them. Five plugins ship. `plugins/beam-mcp` carries numpy and scipy, there to prove
+calls them. Six plugins ship. `plugins/beam-mcp` carries numpy and scipy, there to prove
 a plugin's dependencies never reach the core. `plugins/memory-mcp` keeps what an agent was
 told, in SQLite with FTS5 and no embeddings, scoped to the install and the agent's slug: it
 is what proves a plugin can hold state and see who is calling it. `plugins/audit-mcp` is the reference hook handler, in Python with no
 dependency at all. `plugins/guard-mcp` is the guardrail: it refuses the tool calls an
-operator listed as forbidden and ends a run that keeps calling a tool that fails. `plugins/csv-mcp` is PHP
+operator listed as forbidden and ends a run that keeps calling a tool that fails.
+`plugins/approval-mcp` holds a risky call until a human answers it. `plugins/csv-mcp` is PHP
 with no MCP library at all, answering JSON-RPC by hand, which is what proves the core has
 no plugin API of its own to conform to.
 
@@ -184,6 +185,13 @@ oversized input are refused at `tool.before_call`, and a tool that fails the sam
 several turns running ends the run at `run.before_provider_call`, which is a count only a
 plugin with its own state can keep. Copy `plugins/guard-mcp/rules.example.json` to
 `state/rules.json` to configure it.
+
+`plugins/approval-mcp` is the same hook with a person on the other end. A call it has no
+answer for is recorded and blocked, which ends that run, and `list_pending` and `resolve`
+are how an operator answers. Approving allows the call on the next run rather than
+resuming the one that stopped: holding the connection open would pin the run and every
+plugin it has launched for as long as the person takes to look, and resuming a stopped
+run means core persisting its whole loop state, which is a separate decision.
 
 An agent is a system prompt, a model and the tools it may call. The editor at
 `/admin/agents` binds tools by their published signature, and saving publishes a new
