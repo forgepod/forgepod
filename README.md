@@ -151,7 +151,9 @@ plugin can already be a hook.
 | `run.before_provider_call` | filter | rewrite the system prompt for this turn |
 
 An action is told what happened and cannot change it. A handler that fails is recorded
-against the run as a note, and the run continues.
+against the run as a note, and the run continues. `run.after` and `run.error` also carry
+`blockedCalls`, every call a filter refused and why, because a plugin sees only what it
+refused itself and by then there is more than one filter in a run.
 
 A filter is asked, and its answer decides what happens next. It replies with one object:
 

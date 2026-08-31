@@ -148,6 +148,10 @@ export async function runAgent(args: {
   let outputTokens = 0;
   let answer = "";
   let error: string | null = null;
+  // What a filter refused, in the order it happened. A plugin bound to run.after sees
+  // only the calls it blocked itself, and with two filter plugins that is now the normal
+  // case, so core passes on what only core saw.
+  const blockedCalls: { tool: string; reason: string }[] = [];
 
   const record = async (step: RunStep) => {
     steps.push(step);
@@ -290,6 +294,7 @@ export async function runAgent(args: {
           // Two records, because they answer different questions. The note says core
           // stopped the call, and the tool result is what the model is told about it.
           await record({ kind: "note", text: `${call.name} blocked: ${gate.blocked}` });
+          blockedCalls.push({ tool: call.name, reason: gate.blocked });
           await record({ kind: "tool_result", tool: call.name, output: gate.blocked, isError: true });
           results.push({ id: call.id, content: gate.blocked, isError: true });
           continue;
@@ -354,11 +359,13 @@ export async function runAgent(args: {
     await fireAction(
       bindings,
       "run.after",
-      { ...context, status, answer, error, inputTokens, outputTokens },
+      { ...context, status, answer, error, inputTokens, outputTokens, blockedCalls },
       invoke,
       warn,
     );
-    if (error) await fireAction(bindings, "run.error", { ...context, error }, invoke, warn);
+    if (error) {
+      await fireAction(bindings, "run.error", { ...context, error, blockedCalls }, invoke, warn);
+    }
   } finally {
     await Promise.all([...open.values()].map((c) => c.close().catch(() => undefined)));
   }
