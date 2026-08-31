@@ -94,8 +94,10 @@ def rules():
 
 
 def matching(tool):
+    # fnmatchcase, not fnmatch: fnmatch normalises case per platform, and a rule that
+    # stops matching because the host is Windows is a guardrail that silently opened.
     for rule in rules():
-        if fnmatch.fnmatch(tool, rule.get("tool", "*")):
+        if fnmatch.fnmatchcase(tool, rule.get("tool", "*")):
             yield rule
 
 
