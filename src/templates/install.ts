@@ -1,10 +1,11 @@
 import type { Kysely } from "kysely";
 import { defaultModel, publishVersion } from "../agents/store";
 import type { Schema } from "../db/schema";
-import { composePrompt, type TemplateManifest } from "./manifest";
+import { composePrompt, satisfies, type TemplateManifest } from "./manifest";
 
 export type Problem =
   | { kind: "missing-plugin"; plugin: string }
+  | { kind: "plugin-version"; plugin: string; want: string; have: string }
   | { kind: "unknown-tool"; plugin: string; tool: string }
   | { kind: "slug-taken"; slug: string };
 
@@ -12,6 +13,8 @@ export function describeProblem(problem: Problem): string {
   switch (problem.kind) {
     case "missing-plugin":
       return `plugin not installed or not scanned: ${problem.plugin}`;
+    case "plugin-version":
+      return `${problem.plugin} is ${problem.have}, this template needs ${problem.want}`;
     case "unknown-tool":
       return `no plugin publishes this tool: ${problem.plugin}.${problem.tool}`;
     case "slug-taken":
@@ -35,18 +38,31 @@ export async function checkTemplate(
 
   // The plugins table is the last scan, so a plugin sitting on disk that was never
   // scanned counts as missing. That is correct: it has no tool list to bind to.
-  const plugins = new Set(
-    (await db.selectFrom("plugins").select("name").execute()).map((r) => r.name),
+  const plugins = new Map(
+    (await db.selectFrom("plugins").select(["name", "version"]).execute()).map((r) => [
+      r.name,
+      r.version,
+    ]),
   );
 
   // A plugin a tool is bound to counts as required whether the author listed it or not,
   // so forgetting it in `requires` is reported as the missing plugin it is.
   const wanted = new Set([
-    ...manifest.requires,
+    ...manifest.requires.map((r) => r.plugin),
     ...manifest.agents.flatMap((a) => a.tools.map((t) => t.plugin)),
   ]);
   const missing = new Set([...wanted].filter((name) => !plugins.has(name)));
   for (const plugin of missing) problems.push({ kind: "missing-plugin", plugin });
+
+  // A version complaint about a plugin that is not there would be the missing plugin said
+  // twice, so the range is only checked once the name resolves.
+  for (const { plugin, version } of manifest.requires) {
+    const have = plugins.get(plugin);
+    if (!version || have === undefined) continue;
+    if (!satisfies(have, version)) {
+      problems.push({ kind: "plugin-version", plugin, want: version, have });
+    }
+  }
 
   const tools = new Set(
     (await db.selectFrom("plugin_tools").select(["plugin_name", "name"]).execute()).map((r) =>

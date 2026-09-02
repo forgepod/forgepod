@@ -4,7 +4,7 @@ import { defaultModel, listAgents, loadAgent } from "../agents/store";
 import { BunSqliteDialect } from "../db/bun-sqlite";
 import { migrate } from "../db/migrate";
 import type { Schema } from "../db/schema";
-import { checkTemplate, installTemplate } from "./install";
+import { checkTemplate, describeProblem, installTemplate } from "./install";
 import { TemplateManifest } from "./manifest";
 
 const now = "2026-08-24T10:00:00.000Z";
@@ -221,4 +221,32 @@ test("a plugin bound to but left out of requires is still reported missing", asy
   expect(problems).toEqual([{ kind: "missing-plugin", plugin: "absent-mcp" }]);
 
   await db.destroy();
+});
+
+test("a plugin older than the template asked for stops the install, and says both versions", async () => {
+  const db = await scannedDb();
+  const wanted = manifest({ requires: [{ plugin: "beam-mcp", version: ">=0.2.0" }] });
+
+  const problems = await checkTemplate(db, wanted);
+
+  expect(problems).toEqual([{ kind: "plugin-version", plugin: "beam-mcp", want: ">=0.2.0", have: "0.1.0" }]);
+  expect(describeProblem(problems[0]!)).toBe("beam-mcp is 0.1.0, this template needs >=0.2.0");
+});
+
+test("a satisfied range installs, and a plugin without a range is never version-checked", async () => {
+  const db = await scannedDb();
+
+  expect(await checkTemplate(db, manifest({ requires: [{ plugin: "beam-mcp", version: ">=0.1.0" }] }))).toEqual([]);
+  expect(await checkTemplate(db, manifest({ requires: ["beam-mcp"] }))).toEqual([]);
+
+  await installTemplate(db, manifest({ requires: [{ plugin: "beam-mcp", version: "0.1.0" }] }));
+  expect((await listAgents(db)).length).toBe(2);
+});
+
+test("a range on a plugin that is not installed is reported once, as the missing plugin", async () => {
+  const db = await scannedDb();
+
+  const problems = await checkTemplate(db, manifest({ requires: [{ plugin: "absent-mcp", version: ">=1.0.0" }] }));
+
+  expect(problems).toEqual([{ kind: "missing-plugin", plugin: "absent-mcp" }]);
 });

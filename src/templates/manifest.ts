@@ -50,12 +50,65 @@ const TemplateAgentSchema = z
     }
   });
 
+/**
+ * Enough of semver to answer "does the installed plugin satisfy what the template asked
+ * for", and nothing else. One comparator per range, because no template has needed two.
+ * `^` and `~` are rejected rather than guessed: their 0.x rules are the part people get
+ * wrong, and every plugin in this repo is still 0.x, so a wrong guess would be wrong
+ * everywhere. A version that is not `x.y.z` satisfies nothing, which reports the odd
+ * plugin instead of quietly passing it.
+ */
+const EXACT = /^(\d+)\.(\d+)\.(\d+)$/;
+const RANGE = /^(>=|<=|>|<|=)?\s*(\d+)\.(\d+)\.(\d+)$/;
+
+export const isVersionRange = (range: string) => RANGE.test(range.trim());
+
+export function satisfies(version: string, range: string): boolean {
+  const have = EXACT.exec(version.trim());
+  const want = RANGE.exec(range.trim());
+  if (!have || !want) return false;
+
+  let order = 0;
+  for (let i = 1; i <= 3 && order === 0; i++) order = Number(have[i]) - Number(want[i + 1]);
+
+  switch (want[1] ?? "=") {
+    case ">=":
+      return order >= 0;
+    case "<=":
+      return order <= 0;
+    case ">":
+      return order > 0;
+    case "<":
+      return order < 0;
+    default:
+      return order === 0;
+  }
+}
+
+/**
+ * A plugin name on its own is still valid and still means "any version". The version is
+ * what an author adds once their template depends on a tool signature rather than on a
+ * name.
+ */
+const PluginRequirement = z
+  .union([
+    z.string().min(1),
+    z.object({
+      plugin: z.string().min(1),
+      version: z.string().refine(isVersionRange, "use >=, <=, >, < or an exact x.y.z"),
+    }),
+  ])
+  .transform(
+    (required): { plugin: string; version?: string } =>
+      typeof required === "string" ? { plugin: required } : required,
+  );
+
 export const TemplateManifest = z
   .object({
     name: z.string().min(1),
     version: z.string().min(1),
     description: z.string().optional(),
-    requires: z.array(z.string().min(1)).default([]),
+    requires: z.array(PluginRequirement).default([]),
     agents: z.array(TemplateAgentSchema).min(1),
   })
   .superRefine((manifest, ctx) => {
