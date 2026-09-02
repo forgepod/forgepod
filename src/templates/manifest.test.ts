@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { TemplateManifest, composePrompt, loadTemplate } from "./manifest";
+import { TemplateManifest, composePrompt, loadTemplate, satisfies } from "./manifest";
 
 const agent = {
   slug: "contract-reviewer",
@@ -106,4 +106,47 @@ test("the shipped templates parse, in both prompt shapes", async () => {
 
   const blob = await loadTemplate("templates/code-review");
   expect(composePrompt(blob.agents[0]!)).toStartWith("You review a diff");
+});
+
+test("the old string form of requires still parses, and means any version", () => {
+  const parsed = TemplateManifest.parse({ ...minimal, requires: ["beam-mcp"] });
+
+  expect(parsed.requires).toEqual([{ plugin: "beam-mcp" }]);
+});
+
+test("a requirement can carry a range, and both forms mix in one list", () => {
+  const parsed = TemplateManifest.parse({
+    ...minimal,
+    requires: ["memory-mcp", { plugin: "beam-mcp", version: ">=0.2.0" }],
+  });
+
+  expect(parsed.requires).toEqual([
+    { plugin: "memory-mcp" },
+    { plugin: "beam-mcp", version: ">=0.2.0" },
+  ]);
+});
+
+test("a range nobody implements is refused at parse, not at install", () => {
+  // ^ and ~ are the two an author reaches for out of npm habit, so they have to fail loudly.
+  for (const version of ["^0.2.0", "~0.2.0", "0.2", "latest", ">=0.2.0 <0.3.0"]) {
+    expect(() =>
+      TemplateManifest.parse({ ...minimal, requires: [{ plugin: "beam-mcp", version }] }),
+    ).toThrow();
+  }
+});
+
+test("satisfies compares every field, not the string", () => {
+  expect(satisfies("0.10.0", ">=0.2.0")).toBe(true);
+  expect(satisfies("0.2.0", ">=0.2.0")).toBe(true);
+  expect(satisfies("0.1.9", ">=0.2.0")).toBe(false);
+  expect(satisfies("1.0.0", "<1.0.0")).toBe(false);
+  expect(satisfies("0.9.9", "<1.0.0")).toBe(true);
+  expect(satisfies("0.2.0", "0.2.0")).toBe(true);
+  expect(satisfies("0.2.1", "0.2.0")).toBe(false);
+  expect(satisfies("0.2.0", ">= 0.2.0")).toBe(true);
+
+  // A plugin whose version is not x.y.z satisfies nothing, so it gets reported rather
+  // than quietly passing.
+  expect(satisfies("0.2", ">=0.1.0")).toBe(false);
+  expect(satisfies("v0.2.0", ">=0.1.0")).toBe(false);
 });

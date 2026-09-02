@@ -81,7 +81,11 @@ function TemplateEntry({ entry, problems }: { entry: Available; problems: Proble
           {bindings > 0 ? `, ${plural(bindings, "tool binding")}` : ", no tools"}
         </dd>
         <dt>needs</dt>
-        <dd>{manifest.requires.length > 0 ? manifest.requires.join(", ") : "no plugins"}</dd>
+        <dd>
+          {manifest.requires.length > 0
+            ? manifest.requires.map((r) => (r.version ? `${r.plugin} ${r.version}` : r.plugin)).join(", ")
+            : "no plugins"}
+        </dd>
       </dl>
 
       {ready ? null : (

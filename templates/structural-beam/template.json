@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Simply supported beam checks, with the arithmetic done by a plugin rather than by the model.",
   "requires": [
-    "beam-mcp"
+    { "plugin": "beam-mcp", "version": ">=0.1.0" }
   ],
   "agents": [
     {
