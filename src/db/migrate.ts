@@ -48,6 +48,17 @@ export async function migrate(db: Kysely<Schema>): Promise<void> {
     .execute();
 
   await db.schema
+    .createTable("template_installs")
+    .ifNotExists()
+    .addColumn("template_name", "text", (c) => c.notNull())
+    .addColumn("agent_id", "text", (c) => c.notNull().references("agents.id").onDelete("cascade"))
+    .addColumn("installed_version", "text", (c) => c.notNull())
+    .addColumn("source_hash", "text", (c) => c.notNull())
+    .addColumn("installed_at", "text", (c) => c.notNull())
+    .addPrimaryKeyConstraint("template_installs_pk", ["template_name", "agent_id"])
+    .execute();
+
+  await db.schema
     .createTable("agent_versions")
     .ifNotExists()
     .addColumn("id", "text", (c) => c.primaryKey())

@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "plugin:setup": "for d in plugins/*/; do if [ -f \"$d/requirements.txt\" ]; then python3 -m venv \"$d.venv\" && \"$d.venv/bin/pip\" install -q -r \"$d/requirements.txt\"; fi; done",
-    "plugin:image": "bun scripts/plugin-image.ts"
+    "plugin:image": "bun scripts/plugin-image.ts",
+    "template": "bun scripts/template.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
