@@ -21,10 +21,12 @@ else that speaks MCP.
 prompts, their tool bindings, and the plugins it requires. A vertical is a template plus
 a few plugins.
 
-Installing one from `/admin/templates` writes those agents and then forgets the template
-existed, so what you have afterwards are ordinary agents you edit and delete like any
-other. That is also why there is no upgrade path: a changed template installs as new
-agents, or is applied by hand.
+Installing one from `/admin/templates` writes those agents, and what you have afterwards
+are ordinary agents you edit and delete like any other. Alongside each one it records the
+hash of what the template wrote, and that hash is all `bun run template diff <name>` and
+`bun run template upgrade <name>` need: an agent still matching it moves to the newer
+version, and one you have edited since is reported and left exactly as you left it.
+Neither command runs on its own, and neither deletes an agent a newer version dropped.
 
 Three ship in `templates/`. `structural-beam` binds both tools of the sample beam
 plugin. `legal-drafting` and `code-review` bind none at all, which is the split that

@@ -105,6 +105,20 @@ export type SettingRow = {
   value: string;
 };
 
+/**
+ * One row per agent a template created, which is the grain an upgrade actually needs.
+ * `source_hash` is what the template wrote, so an agent whose current content still
+ * hashes to it has not been touched and can be moved to a newer version safely. An
+ * operator's edit changes the hash, and that is the whole stopping rule.
+ */
+export type TemplateInstallRow = {
+  template_name: string;
+  agent_id: string;
+  installed_version: string;
+  source_hash: string;
+  installed_at: string;
+};
+
 export type Schema = {
   settings: SettingRow;
   plugins: PluginRow;
@@ -116,4 +130,5 @@ export type Schema = {
   run_steps: RunStepRow;
   run_usage: RunUsageRow;
   hook_bindings: HookBindingRow;
+  template_installs: TemplateInstallRow;
 };
