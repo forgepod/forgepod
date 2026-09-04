@@ -66,7 +66,7 @@ cp .env.example .env   # every setting the server reads, with what each one does
 bun install
 bun run plugin:setup   # a venv per plugin, one time
 bun run plugin:image   # build each plugin's image, one time
-bun test
+bun run test
 bun run dev            # admin at http://localhost:3000/admin/plugins
 ```
 

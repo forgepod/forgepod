@@ -47,7 +47,7 @@ Needs Bun, and Python 3 for the sample plugin. A container runtime is optional.
 bun install
 bun run plugin:setup
 bun run plugin:image   # skip this and the container test skips itself
-bun test
+bun run test
 ```
 
 Set `FORGEPOD_CONTAINER_RUNTIME=podman` if that is what you have. The default is
@@ -56,7 +56,7 @@ Set `FORGEPOD_CONTAINER_RUNTIME=podman` if that is what you have. The default is
 ## Before you open a pull request
 
 ```sh
-bun test
+bun run test
 bunx tsc --noEmit
 ```
 

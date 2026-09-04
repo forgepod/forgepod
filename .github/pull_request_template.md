@@ -13,7 +13,7 @@
 
 Tick only what you actually ran.
 
-- [ ] `bun test`
+- [ ] `bun run test`
 - [ ] `bunx tsc --noEmit`
 - [ ] Non-trivial logic has one runnable check that fails if the logic breaks
 - [ ] I have signed the CLA, or will when the bot asks

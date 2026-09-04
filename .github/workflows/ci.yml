@@ -22,5 +22,11 @@ jobs:
       # portable, and they run here with no container runtime. The tests that need an
       # image skip themselves, which is why this job is not proof a container still
       # launches.
-      - run: bun test
+      #
+      # `bun run test` runs `bun test --isolate` (see package.json), not bare `bun
+      # test`: Bun's bunfig.toml has no key for --isolate (checked against
+      # src/cli/bunfig.zig and src/cli/Arguments.zig at bun-v1.3.14), so isolation
+      # cannot live in config and has to be spelled out at every call site, this one
+      # included.
+      - run: bun run test
       - run: bun run build
