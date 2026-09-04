@@ -104,11 +104,19 @@ export async function runAgent(args: {
    */
   unavailable?: BoundToolRef[];
   input: string;
+  /**
+   * Who started this run, or null for a caller `guard()` never assigned a user to (there
+   * is none today, but the type says the column can hold one before any caller does). Not
+   * optional: an omitted field here would still insert cleanly, since `runs.actor_id` is a
+   * nullable column and Kysely does not require a nullable column at insert time, so
+   * leaving this optional would let a real caller forget it and nothing would catch that.
+   */
+  actorId: string | null;
   maxTurns?: number;
   now?: () => string;
   onEvent?: (event: RunEvent) => void;
 }): Promise<RunOutcome> {
-  const { db, provider, version, tools, input } = args;
+  const { db, provider, version, tools, input, actorId } = args;
   const now = args.now ?? (() => new Date().toISOString());
   const emit = args.onEvent ?? (() => undefined);
   const maxTurns = args.maxTurns ?? 8;
@@ -124,7 +132,7 @@ export async function runAgent(args: {
       started_at: now(),
       ended_at: null,
       error: null,
-      actor_id: null,
+      actor_id: actorId,
     })
     .execute();
 

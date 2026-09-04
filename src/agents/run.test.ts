@@ -117,6 +117,7 @@ test.skipIf(!built)(
       },
       tools,
       input: "6 m span, 10 kN at 2 m. What does the left support carry?",
+      actorId: null,
     });
 
     expect(outcome.error).toBeNull();
@@ -193,6 +194,7 @@ test.skipIf(!built)("a tool that throws is reported back rather than ending the 
     },
     tools: await runnableTools(db, versionId),
     input: "negative span",
+    actorId: null,
   });
 
   expect(outcome.error).toBeNull();
@@ -259,6 +261,7 @@ test.skipIf(!built)("a streaming run emits deltas before the step they belong to
     },
     tools: await runnableTools(db, versionId),
     input: "6 m span",
+    actorId: null,
     onEvent: (event) => seen.push(event.kind === "delta" ? `delta:${event.text}` : event.kind),
   });
 
@@ -308,6 +311,7 @@ test("a run says which of the agent's bound tools it could not offer", async () 
     tools: [],
     unavailable: [{ pluginName: "beam-mcp", toolName: "rectangular_section_modulus" }],
     input: "anything",
+    actorId: null,
   });
 
   // First, so a reader of the run sees it before the answer it shaped.
@@ -351,6 +355,7 @@ test("a run with every tool available records no note", async () => {
     },
     tools: [],
     input: "anything",
+    actorId: null,
   });
 
   expect(outcome.steps.map((s) => s.kind)).toEqual(["text"]);

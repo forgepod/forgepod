@@ -114,6 +114,7 @@ test.skipIf(!python)(
       version: { id: versionId, agentId, slug: "audited", model: "m", systemPrompt: "" },
       tools: await runnableTools(db, versionId),
       input: "log this",
+      actorId: null,
     });
 
     expect(outcome.error).toBeNull();

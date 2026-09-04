@@ -112,6 +112,7 @@ test.skipIf(!python)(
         version,
         tools: await runnableTools(db, versionId),
         input: "log this",
+        actorId: null,
       });
 
     const held = await run("I have asked for approval.");

@@ -1,6 +1,7 @@
-// actorFrom reaches the process-wide auth() and database() memos, so this file has to
-// decide what they resolve to before anything imports them. Bun gives each test file its
-// own process, so setting them here cannot leak into another file's run.
+// actorFrom reaches the process-wide auth() and database() memos, and both read
+// process.env when they are first called rather than when this file is imported. Setting
+// them here is what keeps this test off the real forgepod.db. Bun gives each test file its
+// own process, so it cannot leak into another file's run.
 process.env.BETTER_AUTH_SECRET ??= "test-secret";
 process.env.FORGEPOD_DATABASE_URL ??= "file::memory:";
 
