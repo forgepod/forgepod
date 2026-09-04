@@ -150,9 +150,30 @@ export async function loadAgent(db: Kysely<Schema>, id: string): Promise<AgentDe
   };
 }
 
+/**
+ * Just the ownership fact, without loading the agent. `agent.delete` is the one permission
+ * that reads a row, and loading the whole agent to answer it would resolve every bound
+ * tool for a question that needs one column.
+ *
+ * `null` return means no such agent. `{ ownerId: null }` means it exists and nobody owns
+ * it, which is what every agent created before ownership looks like.
+ */
+export async function agentOwner(
+  db: Kysely<Schema>,
+  agentId: string,
+): Promise<{ ownerId: string | null } | null> {
+  const row = await db
+    .selectFrom("agents")
+    .select("owner_id")
+    .where("id", "=", agentId)
+    .executeTakeFirst();
+
+  return row ? { ownerId: row.owner_id } : null;
+}
+
 export async function createAgent(
   db: Kysely<Schema>,
-  input: { name: string; model?: string; systemPrompt?: string },
+  input: { name: string; ownerId?: string; model?: string; systemPrompt?: string },
   now = new Date().toISOString(),
 ): Promise<string> {
   const agentId = crypto.randomUUID();
@@ -168,7 +189,7 @@ export async function createAgent(
         name: input.name,
         created_at: now,
         published_version_id: null,
-        owner_id: null,
+        owner_id: input.ownerId ?? null,
       })
       .execute();
 

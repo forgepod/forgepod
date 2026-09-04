@@ -1,10 +1,12 @@
 "use server";
 
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { database } from "@/db";
 import { bindHook, unbindHook, type HookName } from "@/agents/hooks";
-import { createAgent, deleteAgent, loadAgent, publishVersion, type BoundToolRef } from "@/agents/store";
+import { agentOwner, createAgent, deleteAgent, loadAgent, publishVersion, type BoundToolRef } from "@/agents/store";
+import { guard } from "@/auth/actor";
 import { resolveApproval } from "@/plugins/approvals";
 
 const parseTools = (form: FormData): BoundToolRef[] =>
@@ -16,15 +18,22 @@ const parseTools = (form: FormData): BoundToolRef[] =>
     .map(([pluginName, toolName]) => ({ pluginName, toolName }));
 
 export async function createAgentAction(form: FormData): Promise<void> {
+  const verdict = await guard(await headers(), "agent.create");
+  if (!verdict.ok) redirect(`/admin/agents?hookError=${encodeURIComponent(verdict.reason)}`);
+
   const name = String(form.get("name") ?? "").trim();
   if (!name) return;
 
-  const id = await createAgent(await database(), { name });
+  const id = await createAgent(await database(), { name, ownerId: verdict.actor.userId });
   redirect(`/admin/agents/${id}`);
 }
 
 export async function saveAgentAction(form: FormData): Promise<void> {
   const id = String(form.get("id"));
+
+  const verdict = await guard(await headers(), "agent.edit");
+  if (!verdict.ok) redirect(`/admin/agents/${id}?hookError=${encodeURIComponent(verdict.reason)}`);
+
   const db = await database();
 
   await publishVersion(db, id, {
@@ -41,7 +50,14 @@ export async function saveAgentAction(form: FormData): Promise<void> {
 }
 
 export async function deleteAgentAction(form: FormData): Promise<void> {
-  await deleteAgent(await database(), String(form.get("id")));
+  const id = String(form.get("id"));
+  const db = await database();
+
+  const owner = await agentOwner(db, id);
+  const verdict = await guard(await headers(), "agent.delete", owner ?? { ownerId: null });
+  if (!verdict.ok) redirect(`/admin/agents/${id}?hookError=${encodeURIComponent(verdict.reason)}`);
+
+  await deleteAgent(db, id);
   redirect("/admin/agents");
 }
 
@@ -54,6 +70,10 @@ export async function deleteAgentAction(form: FormData): Promise<void> {
  */
 export async function bindHookAction(form: FormData): Promise<void> {
   const id = String(form.get("id"));
+
+  const verdict = await guard(await headers(), "hook.bind");
+  if (!verdict.ok) redirect(`/admin/agents/${id}?hookError=${encodeURIComponent(verdict.reason)}`);
+
   const [pluginName, toolName] = String(form.get("handler") ?? "").split("::");
   const hook = String(form.get("hook") ?? "") as HookName;
   const priority = Number(form.get("priority"));
@@ -81,6 +101,10 @@ export async function bindHookAction(form: FormData): Promise<void> {
 
 export async function unbindHookAction(form: FormData): Promise<void> {
   const id = String(form.get("id"));
+
+  const verdict = await guard(await headers(), "hook.bind");
+  if (!verdict.ok) redirect(`/admin/agents/${id}?hookError=${encodeURIComponent(verdict.reason)}`);
+
   await unbindHook(await database(), String(form.get("binding")));
   revalidatePath(`/admin/agents/${id}`);
   redirect(`/admin/agents/${id}`);
@@ -93,6 +117,9 @@ export async function unbindHookAction(form: FormData): Promise<void> {
  */
 export async function resolveApprovalAction(form: FormData): Promise<void> {
   const id = String(form.get("id"));
+
+  const verdict = await guard(await headers(), "approval.resolve");
+  if (!verdict.ok) redirect(`/admin/agents/${id}?hookError=${encodeURIComponent(verdict.reason)}`);
 
   let failure: string | null = null;
   try {
