@@ -58,7 +58,10 @@ export function createAuth(
     secret: authSecret(env),
     baseURL: env.BETTER_AUTH_URL,
     database: { db, type },
-    emailAndPassword: { enabled: true },
+    // Better Auth's own default is 8. The owner account claims the whole install on a
+    // fresh box, so its password floor is the login page's `minLength` too, not just
+    // this server-side one the browser hint cannot be trusted to enforce alone.
+    emailAndPassword: { enabled: true, minPasswordLength: 12 },
     hooks: { before: signUpGate(db) },
     databaseHooks: claimOwnership(db),
     plugins: [

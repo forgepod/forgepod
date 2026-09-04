@@ -2,7 +2,13 @@ import { createAuthMiddleware, APIError } from "better-auth/api";
 import type { Kysely } from "kysely";
 import type { Schema } from "../db/schema";
 
-/** Better Auth owns the `user` table, so it is not in `Schema` and the cast says so. */
+/**
+ * Better Auth owns the `user` table, so it is not in `Schema` and the cast says so.
+ *
+ * This is a live check, not a one-time flag, so deleting the last user row reopens the
+ * install for claiming by anyone who reaches it next. That follows from what this
+ * function actually asks; it is not a special case anywhere.
+ */
 export async function hasAnyUser(db: Kysely<Schema>): Promise<boolean> {
   const row = await db
     .selectFrom("user" as never)
@@ -18,11 +24,10 @@ export async function hasAnyUser(db: Kysely<Schema>): Promise<boolean> {
  * themselves an account, and `claimOwnership` would make it an owner.
  *
  * Two sign-ups arriving at once could both pass `hasAnyUser` before either row lands, so
- * both would slip through this gate. Not closed here: this product is set up once by
- * whoever runs the install command on a box nobody else can reach yet, so the race needs
- * a second person hitting the same fresh instance in the same instant before its first
- * account exists, which is not a realistic install path. Worth a lock the day this gate
- * guards something reachable before any operator is watching it.
+ * both would slip through this gate. Not locked: whoever reaches an unclaimed install
+ * first wins either way, lock or no lock, since there is nothing yet to steal from. The
+ * only thing a race costs is two owners instead of one, which an owner can fix from the
+ * people page afterward. Not worth a lock for that.
  */
 export function signUpGate(db: Kysely<Schema>) {
   return createAuthMiddleware(async (ctx) => {
