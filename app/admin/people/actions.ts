@@ -69,32 +69,48 @@ export async function setRoleAction(form: FormData): Promise<void> {
   redirect("/admin/people");
 }
 
+export type IssueKeyState = { key: string | null; error: string | null };
+
 /**
+ * Returns state instead of redirecting, and never puts the plaintext key in a URL. A
+ * query string lands in the browser's address bar, session history, the `Location`
+ * header, and every access log and reverse proxy line in front of this app, and none of
+ * that clears on reload, so "shown once" would already be a lie the moment it got there.
+ * The caller is `<IssueKeyForm>` in `./issue-key-form.tsx`, a client component wired
+ * through `useActionState`, which keeps the returned key in React state and nowhere
+ * else, so a reload genuinely does lose it.
+ *
  * Called without headers on purpose. Better Auth's own `/api-key/create`, read in
  * `node_modules/@better-auth/api-key/dist/index.mjs`, ignores `body.userId` entirely
  * the moment it sees a session on the request (which passing headers here would
  * produce) and issues the key to the caller's own account instead. Only the
  * header-less, server-only branch honours an explicit `userId`. `guard` above is the
  * real authorization for this action; Better Auth is only asked to mint the row.
+ *
+ * That header-less path also skips every check Better Auth would otherwise run on the
+ * target id, so a bad id would mint a key row pointing at nobody. Checked here instead.
  */
-export async function issueKeyAction(form: FormData): Promise<void> {
+export async function issueKeyAction(_prevState: IssueKeyState, form: FormData): Promise<IssueKeyState> {
   const verdict = await guard(await headers(), "user.manage");
-  if (!verdict.ok) redirect(`/admin/people?error=${encodeURIComponent(verdict.reason)}`);
+  if (!verdict.ok) return { key: null, error: verdict.reason };
 
   const userId = String(form.get("userId") ?? "");
   const name = String(form.get("name") ?? "").trim() || undefined;
 
-  let issued: string;
+  const db = await database();
+  const person = await db
+    .selectFrom("user" as never)
+    .select(["id"] as never)
+    .where("id" as never, "=", userId as never)
+    .executeTakeFirst();
+  if (!person) return { key: null, error: "No such person." };
+
   try {
     const result = await (await auth()).api.createApiKey({ body: { userId, name } });
-    issued = result.key;
+    return { key: result.key, error: null };
   } catch (e) {
-    fail(e instanceof Error ? e.message : String(e));
+    return { key: null, error: e instanceof Error ? e.message : String(e) };
   }
-
-  // Shown exactly once: this redirect is the only response that will ever carry the
-  // plaintext key, and the page copy says so.
-  redirect(`/admin/people?issuedKey=${encodeURIComponent(issued)}`);
 }
 
 /**
@@ -113,10 +129,14 @@ export async function revokeKeyAction(form: FormData): Promise<void> {
 
   const keyId = String(form.get("keyId") ?? "");
   const db = await database();
-  await db
+  const result = (await db
     .deleteFrom("apikey" as never)
     .where("id" as never, "=", keyId as never)
-    .execute();
+    .executeTakeFirst()) as { numDeletedRows: bigint } | undefined;
+
+  if (!result || result.numDeletedRows === 0n) {
+    fail("No such key.");
+  }
 
   redirect("/admin/people");
 }

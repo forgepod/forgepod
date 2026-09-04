@@ -5,7 +5,8 @@ import { guard } from "@/auth/actor";
 import type { Role } from "@/auth/policy";
 import { Masthead } from "../../masthead";
 import { PageHeader } from "../../page-header";
-import { createPersonAction, issueKeyAction, revokeKeyAction, setRoleAction } from "./actions";
+import { createPersonAction, revokeKeyAction, setRoleAction } from "./actions";
+import { IssueKeyForm } from "./issue-key-form";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "People" };
@@ -60,7 +61,7 @@ async function loadKeys(): Promise<KeyRow[]> {
 export default async function PeoplePage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; issuedKey?: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const verdict = await guard(await headers(), "user.manage");
   // A signed-in editor or runner landing here is being told they lack permission, not
@@ -68,7 +69,7 @@ export default async function PeoplePage({
   // Someone with no session at all still gets sent to /login.
   if (!verdict.ok) redirect(verdict.status === 401 ? "/login" : "/admin/agents");
 
-  const { error, issuedKey } = await searchParams;
+  const { error } = await searchParams;
   const people = await loadPeople();
   const keys = await loadKeys();
   const byId = new Map(people.map((p) => [p.id, p]));
@@ -86,15 +87,6 @@ export default async function PeoplePage({
       {error ? (
         <div className="failure">
           <p>{error}</p>
-        </div>
-      ) : null}
-
-      {issuedKey ? (
-        <div className="failure asking">
-          <p>
-            New key: <code className="mono">{issuedKey}</code>
-          </p>
-          <p>This is the only time it is shown. Copy it now; it cannot be displayed again.</p>
         </div>
       ) : null}
 
@@ -152,13 +144,7 @@ export default async function PeoplePage({
               </button>
             </form>
 
-            <form action={issueKeyAction} className="row">
-              <input type="hidden" name="userId" value={person.id} />
-              <input name="name" placeholder="Key name (optional)" className="field" />
-              <button type="submit" className="action-quiet">
-                Issue key
-              </button>
-            </form>
+            <IssueKeyForm userId={person.id} />
           </div>
         ))}
       </section>
