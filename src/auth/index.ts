@@ -1,10 +1,24 @@
 import { betterAuth } from "better-auth";
 import { admin } from "better-auth/plugins/admin";
-import { adminAc } from "better-auth/plugins/admin/access";
+import { adminAc, defaultStatements } from "better-auth/plugins/admin/access";
+import { createAccessControl } from "better-auth/plugins/access";
 import { apiKey } from "@better-auth/api-key";
 import type { Kysely } from "kysely";
-import { database, databaseUrl } from "../db";
+import { database, databaseUrl, typeFor } from "../db";
 import type { Schema } from "../db/schema";
+
+const ac = createAccessControl(defaultStatements);
+
+/**
+ * Only "owner" holds Better Auth's own built-in admin statement set. "editor" and
+ * "runner" are declared with no statements of their own: declaring them is what makes
+ * `/admin/set-role` accept them as a target role (Better Auth refuses any role name
+ * outside this map once the map is set), and holding nothing is what keeps them from
+ * granting any of Better Auth's own admin powers. This is Better Auth's own
+ * access-control layer for its /admin/* routes, separate from `src/auth/policy.ts`,
+ * which is what the rest of ForgePod checks against.
+ */
+const roles = { owner: adminAc, editor: ac.newRole({}), runner: ac.newRole({}) };
 
 /**
  * Sessions are signed with this. A generated fallback would differ between processes and
@@ -41,21 +55,18 @@ export function createAuth(
 ) {
   return betterAuth({
     secret: authSecret(env),
-    baseURL: env.FORGEPOD_BASE_PATH ?? env.BETTER_AUTH_URL,
+    baseURL: env.BETTER_AUTH_URL,
     database: { db, type },
     emailAndPassword: { enabled: true },
     plugins: [
-      // `defaultRole` only ever applies to the very first account, because sign-up is
-      // refused once the user table has a row (see `src/auth/bootstrap.ts`). Everyone
-      // after that is created from /admin/people with an explicit role. Removing that
-      // gate without changing this line would make every new sign-up an owner.
-      //
-      // `roles` renames Better Auth's built-in "admin" role statement set to "owner",
-      // reusing its permissions verbatim. Without it, `adminRoles: ["owner"]` throws at
-      // construction time: the admin plugin only accepts role names it already knows.
-      // This is Better Auth's own access-control layer for its /admin/* routes, separate
-      // from `src/auth/policy.ts`, which is what the rest of ForgePod checks against.
-      admin({ defaultRole: "owner", adminRoles: ["owner"], roles: { owner: adminAc } }),
+      // `defaultRole` is what Better Auth falls back to whenever a user row's role
+      // column is null or empty, and its own /admin/* middleware trusts that fallback
+      // without checking anything else. It must be the least privileged role: "runner"
+      // can do nothing through Better Auth's admin endpoints (see `roles` above), so a
+      // row that never got a role assigned lands with no admin power instead of every
+      // admin power. Sign-up still assigns a role explicitly (see
+      // `src/auth/bootstrap.ts`); this is the floor for whatever slips past that.
+      admin({ defaultRole: "runner", adminRoles: ["owner"], roles }),
       // `enableSessionForAPIKeys` stays off. It mocks a session for the key's owner,
       // which would let a key handed to an outside system call /api-key/create and change
       // the owner's password. `src/auth/actor.ts` verifies keys explicitly instead.
@@ -68,16 +79,23 @@ let instance: Promise<ReturnType<typeof createAuth>> | undefined;
 
 /**
  * Opened once per process, with Better Auth's own migrations run on the way, so nothing
- * else has to remember to. Mirrors `database()` in `src/db/index.ts` deliberately.
+ * else has to remember to. Mirrors `database()` in `src/db/index.ts` deliberately,
+ * including the same failure handling: `??=` alone would cache a rejected promise
+ * forever, since a rejection is not nullish, so a transient failure here (or a
+ * non-transient one from `getMigrations`) would leave `auth()` refusing for the rest of
+ * the process instead of retrying on the next call.
  *
  * The dependency points one way: this file imports `src/db`, and `src/db` never imports
  * this one. Running these migrations inside `database()` would close that into a cycle.
  */
 export function auth(): Promise<ReturnType<typeof createAuth>> {
   instance ??= (async () => {
+    // Checked before opening the database, so a missing secret refuses immediately
+    // instead of paying for a full database open and migration first.
+    authSecret();
+
     const url = databaseUrl();
-    const type = url.startsWith("postgres://") || url.startsWith("postgresql://") ? "postgres" : "sqlite";
-    const created = createAuth(await database(), type);
+    const created = createAuth(await database(), typeFor(url));
 
     // Not "better-auth/db": in 1.7.2 that entry point re-exports @better-auth/core/db and
     // does not carry getMigrations. It lives at this subpath instead.
@@ -85,6 +103,9 @@ export function auth(): Promise<ReturnType<typeof createAuth>> {
     await (await getMigrations(created.options)).runMigrations();
 
     return created;
-  })();
+  })().catch((err) => {
+    instance = undefined;
+    throw err;
+  });
   return instance;
 }

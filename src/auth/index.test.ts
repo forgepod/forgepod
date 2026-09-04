@@ -26,3 +26,23 @@ test("better auth creates its own tables on the connection it was handed", async
     await db.destroy();
   }
 });
+
+test("a user row with no role assigned falls back to the least privileged role", async () => {
+  const db = new Kysely<Schema>({ dialect: new BunSqliteDialect(":memory:") });
+  try {
+    const instance = createAuth(db, "sqlite", { BETTER_AUTH_SECRET: "s3cret" });
+    // Reaches into Better Auth's own plugin config, which is not typed for external use.
+    const adminPlugin = instance.options.plugins?.find((p: any) => p.id === "admin") as any;
+
+    expect(adminPlugin.options.defaultRole).toBe("runner");
+
+    // The fallback role must be unable to do anything through Better Auth's own
+    // admin access control, using Better Auth's own authorize function rather than a
+    // reimplementation of it.
+    const fallbackRole = adminPlugin.options.roles.runner;
+    expect(fallbackRole.authorize({ user: ["ban"] }).success).toBe(false);
+    expect(fallbackRole.authorize({ session: ["revoke"] }).success).toBe(false);
+  } finally {
+    await db.destroy();
+  }
+});
