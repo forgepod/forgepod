@@ -1,26 +1,8 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { parseSetCookieHeader, toCookieOptions } from "better-auth/cookies/utils";
 import { auth } from "@/auth";
-
-/**
- * A server action's return value is not a Response, so nothing carries Better Auth's
- * Set-Cookie header to the browser on its own. This is the same thing Better Auth's own
- * `nextCookies()` plugin does after every request, but that plugin lives at
- * `better-auth/next-js` and imports Next itself, which this repo never imports even from
- * an `app/` file that is otherwise free to. Copied out directly instead: it is a handful
- * of lines, and pulling in the whole plugin for them buys nothing.
- */
-export async function applySetCookie(headers: Headers | undefined): Promise<void> {
-  const raw = headers?.get("set-cookie");
-  if (!raw) return;
-  const jar = await cookies();
-  parseSetCookieHeader(raw).forEach((value, name) => {
-    jar.set(name, value.value, toCookieOptions(value));
-  });
-}
+import { applySetCookie } from "../apply-set-cookie";
 
 async function complete(
   body: { email: string; password: string; name?: string },

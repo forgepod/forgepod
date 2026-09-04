@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { actorFrom } from "@/auth/actor";
-import { applySetCookie } from "./login/actions";
+import { applySetCookie } from "./apply-set-cookie";
 
 /**
  * Better Auth's own `POST /api/auth/sign-out` demands `Content-Type: application/json`
