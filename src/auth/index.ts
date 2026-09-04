@@ -6,7 +6,7 @@ import { apiKey } from "@better-auth/api-key";
 import type { Kysely } from "kysely";
 import { database, databaseUrl, typeFor } from "../db";
 import type { Schema } from "../db/schema";
-import { claimOwnership, signUpGate } from "./bootstrap";
+import { authGate, claimOwnership } from "./bootstrap";
 
 const ac = createAccessControl(defaultStatements);
 
@@ -62,7 +62,11 @@ export function createAuth(
     // fresh box, so its password floor is the login page's `minLength` too, not just
     // this server-side one the browser hint cannot be trusted to enforce alone.
     emailAndPassword: { enabled: true, minPasswordLength: 12 },
-    hooks: { before: signUpGate(db) },
+    // The one `hooks.before` slot Better Auth allows carries three gates: the sign-up
+    // gate below, plus the two that close its own mounted `/api-key/*` and
+    // `/admin/set-role` routes as a second permission surface. See `authGate` in
+    // `./bootstrap` for why they have to live in one composed middleware.
+    hooks: { before: authGate(db) },
     databaseHooks: claimOwnership(db),
     plugins: [
       // `defaultRole` is what Better Auth falls back to whenever a user row's role

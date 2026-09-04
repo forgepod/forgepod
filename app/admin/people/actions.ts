@@ -48,6 +48,11 @@ export async function createPersonAction(form: FormData): Promise<void> {
  * The one place a second owner can actually be minted, and the one place the last owner
  * can be stopped from locking everyone out. Refusing a change to the acting owner's own
  * id is what keeps this install always administrable by someone.
+ *
+ * `selfDemoteGate` in `src/auth/bootstrap.ts` is the real gate: it sits in front of
+ * Better Auth's own `/admin/set-role`, the mounted route this action's own call to
+ * `auth().api.setRole` also passes through, so it already refuses this case. The check
+ * below stays anyway as defence in depth, in case that middleware is ever loosened.
  */
 export async function setRoleAction(form: FormData): Promise<void> {
   const verdict = await guard(await headers(), "user.manage");

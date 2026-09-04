@@ -1,4 +1,4 @@
-import { createAuthMiddleware, APIError } from "better-auth/api";
+import { createAuthMiddleware, APIError, getSessionFromCtx } from "better-auth/api";
 import type { Kysely } from "kysely";
 import type { Schema } from "../db/schema";
 
@@ -37,6 +37,88 @@ export function signUpGate(db: Kysely<Schema>) {
         message: "This install already has an account. Ask its owner to add you from the people page.",
       });
     }
+  });
+}
+
+/**
+ * Better Auth mounts `/api-key/*` itself, a second permission surface `src/auth/policy.ts`
+ * never reaches. Its own `/api-key/create` honours a signed-in session on the branch
+ * reached whenever `ctx.request || ctx.headers` is set (verified against
+ * `node_modules/@better-auth/api-key/dist/index.mjs`), and issues the key to the caller's
+ * own account with no role check attached: any runner or editor can mint a live key for
+ * themselves that `guard()` in `src/auth/actor.ts` then treats as a legitimate credential.
+ * The design makes issuing keys owner-only; `app/admin/people/actions.ts` enforces that,
+ * this mounted route did not.
+ *
+ * Gated for every `/api-key/` path, not only `/api-key/create`: ForgePod has no
+ * legitimate caller for any of them over HTTP. `issueKeyAction` mints through the
+ * header-less server branch (see its own comment in `app/admin/people/actions.ts`), and
+ * the people page reads and deletes the `apikey` table directly, because `/api-key/list`
+ * and `/api-key/delete` only ever scope to the caller's own session id, not the admin
+ * view that page needs. Leaving `/api-key/list` or `/api-key/get` open to a session
+ * cookie would still let a signed-in person enumerate their own key metadata for a
+ * feature this app never offers, so the whole client branch is refused rather than
+ * picking just the mutating routes.
+ *
+ * The header-less server call `issueKeyAction` makes carries neither `ctx.request` nor
+ * `ctx.headers`, so it passes through untouched, the same distinction the plugin itself
+ * uses to decide `isClientRequest`.
+ */
+export function apiKeyMintGate() {
+  return createAuthMiddleware(async (ctx) => {
+    if (!ctx.path.startsWith("/api-key/")) return;
+    if (ctx.request || ctx.headers) {
+      throw new APIError("FORBIDDEN", {
+        message: "API keys are issued from the people page, not this endpoint.",
+      });
+    }
+  });
+}
+
+/**
+ * `/admin/set-role` is Better Auth's own mounted route, a second surface
+ * `app/admin/people/actions.ts` cannot reach: `setRoleAction`'s own refusal on a
+ * self-target only guards the one caller that goes through it. A direct POST to
+ * `/admin/set-role` with the owner's own id and `role: "runner"` still writes, and on a
+ * single-owner install nothing can grant `user.manage` again afterward. Unlike deleting
+ * the last user, this does not reopen claiming.
+ *
+ * This hook runs before the admin plugin's own `adminMiddleware`, so the acting session
+ * is not yet on `ctx.context.session` and is read with `getSessionFromCtx` instead, the
+ * same helper `@better-auth/api-key` uses for the same reason.
+ *
+ * Because this middleware also runs for `setRoleAction`'s own call to `auth().api.setRole`,
+ * this one gate covers both the mounted route and the server action, which makes the
+ * check already in `setRoleAction` redundant. That check stays anyway as defence in
+ * depth, with a comment saying this middleware is the real gate.
+ */
+export function selfDemoteGate() {
+  return createAuthMiddleware(async (ctx) => {
+    if (ctx.path !== "/admin/set-role") return;
+    const session = await getSessionFromCtx(ctx);
+    if (!session?.user) return;
+    if (ctx.body?.userId === session.user.id) {
+      throw new APIError("FORBIDDEN", {
+        message: "You cannot change your own role. Have another owner do it, or this install could end up with nobody able to administer it.",
+      });
+    }
+  });
+}
+
+/**
+ * `hooks.before` takes exactly one `AuthMiddleware`, so every before-hook this install
+ * needs runs through this single composed one. Order does not matter between these
+ * three: each checks its own `ctx.path` first and returns immediately for every other
+ * endpoint.
+ */
+export function authGate(db: Kysely<Schema>) {
+  const signUp = signUpGate(db);
+  const apiKey = apiKeyMintGate();
+  const selfDemote = selfDemoteGate();
+  return createAuthMiddleware(async (ctx) => {
+    await signUp(ctx);
+    await apiKey(ctx);
+    await selfDemote(ctx);
   });
 }
 
