@@ -96,19 +96,17 @@ test("the server refuses a password shorter than 12 characters, not just the bro
   }
 });
 
-// The three tests below cover the credential lifecycle end to end: a key that works, a
-// key whose owner is banned, and a role read fresh rather than cached. They share one
-// account tree, set up once, because actorFrom and guard always reach the process-wide
-// auth()/database() memo (see the process.env block above) rather than a db passed in,
-// so this file gets exactly one first-and-only account to build on, the same limit
-// signUpGate itself enforces.
+// The two tests below cover the credential lifecycle end to end: a key that works and a
+// key whose owner is banned. They share one account tree, set up once, because actorFrom
+// and guard always reach the process-wide auth()/database() memo (see the process.env
+// block above) rather than a db passed in, so this file gets exactly one first-and-only
+// account to build on, the same limit signUpGate itself enforces.
 let ownerCookie: Headers;
+let ownerId: string;
 let keyHolderId: string;
 let workingKey: string;
 let bannedHolderId: string;
 let bannedHolderKey: string;
-let roleChangeUserId: string;
-let roleChangeSessionCookie: Headers;
 
 beforeAll(async () => {
   const instance = await auth();
@@ -119,6 +117,7 @@ beforeAll(async () => {
     returnHeaders: true,
   });
   ownerCookie = cookieHeaderFrom(signUp.headers);
+  ownerId = (signUp.response as { user: { id: string } }).user.id;
 
   const keyHolder = await instance.api.createUser({
     body: { email: "keyholder@lifecycle.test", password: "correct-horse-battery", name: "Keyholder", role: "runner" },
@@ -138,17 +137,6 @@ beforeAll(async () => {
     .set({ banned: true } as never)
     .where("id" as never, "=", bannedHolderId as never)
     .execute();
-
-  const roleChangeHolder = await instance.api.createUser({
-    body: { email: "rolechange@lifecycle.test", password: "correct-horse-battery", name: "RoleChange", role: "owner" },
-    headers: ownerCookie,
-  });
-  roleChangeUserId = roleChangeHolder.user.id;
-  const signIn = await instance.api.signInEmail({
-    body: { email: "rolechange@lifecycle.test", password: "correct-horse-battery" },
-    returnHeaders: true,
-  });
-  roleChangeSessionCookie = cookieHeaderFrom(signIn.headers);
 });
 
 // This is the exact call app/api/agents/[id]/run/route.ts makes on its first line, before
@@ -167,19 +155,70 @@ test("a key whose owner is banned resolves to no actor", async () => {
   expect(actor).toBeNull();
 });
 
-test("the role comes from the user row, not from the session, so a change after sign-in takes effect immediately", async () => {
-  const before = await actorFrom(roleChangeSessionCookie);
-  expect(before?.role).toBe("owner");
+// A "role comes from the row, not the session" test used to live here, reading the role
+// again on this file's own singleton auth() instance after a demotion. It could not fail:
+// this instance has no cookieCache and no secondaryStorage configured, so Better Auth's
+// own getSession joins the user row fresh on every call regardless of where actorFrom
+// reads the role from. Rewriting actorFrom to trust `session.user.role` left that test
+// green. Proving the property needs a session that actually goes stale, which needs
+// cookieCache turned on, which this file's shared instance cannot do without turning it
+// on for every other test here too. See `src/auth/actor.stale-cache.test.ts`, which
+// builds its own instance for exactly that.
 
-  const db = await database();
-  await db
-    .updateTable("user" as never)
-    .set({ role: "runner" } as never)
-    .where("id" as never, "=", roleChangeUserId as never)
-    .execute();
+// The three tests below hit selfTargetGate through the mounted routes it actually guards,
+// not through an app action: there is no ban or remove action in this app yet, so a
+// direct POST is the only way to reach `/admin/ban-user` and `/admin/remove-user` at all,
+// same as it was for `/admin/set-role` before `setRoleAction` existed.
+test("an owner cannot demote themselves through the mounted route", async () => {
+  const instance = await auth();
+  await expect(
+    instance.api.setRole({ body: { userId: ownerId, role: "runner" }, headers: ownerCookie }),
+  ).rejects.toThrow(/cannot change your own role/i);
+});
 
-  // Same session, not re-issued. If actorFrom read the role Better Auth cached on sign-in
-  // instead of the row, this would still say "owner".
-  const after = await actorFrom(roleChangeSessionCookie);
-  expect(after?.role).toBe("runner");
+// Better Auth's own /admin/ban-user handler also refuses a self-target ("You cannot ban
+// yourself"; see node_modules/better-auth/dist/plugins/admin/routes.mjs), so a substring
+// match on that phrase would still pass with selfTargetGate's own ban-user entry deleted.
+// The exact message is what proves this app's gate is the one that answered.
+test("an owner cannot ban themselves through the mounted route", async () => {
+  const instance = await auth();
+  try {
+    await instance.api.banUser({ body: { userId: ownerId }, headers: ownerCookie });
+    throw new Error("expected banUser to refuse a self-target");
+  } catch (e) {
+    expect((e as { body?: { message?: string } }).body?.message).toBe(
+      "You cannot ban yourself. There is no unban control in this app yet, so that would lock you out with no way back in.",
+    );
+  }
+});
+
+// Same reasoning as the ban-user test above: Better Auth's own /admin/remove-user handler
+// also refuses a self-target on its own, so the exact wording is what proves this app's
+// gate, not the library's, is what fired.
+test("an owner cannot remove themselves through the mounted route", async () => {
+  const instance = await auth();
+  try {
+    await instance.api.removeUser({ body: { userId: ownerId }, headers: ownerCookie });
+    throw new Error("expected removeUser to refuse a self-target");
+  } catch (e) {
+    expect((e as { body?: { message?: string } }).body?.message).toBe(
+      "You cannot remove yourself. Deleting the last account reopens sign-up to whoever reaches this install next.",
+    );
+  }
+});
+
+// The gate gets in front of every self-target on these three routes, not every call to
+// them: an owner still has to be able to ban and remove someone else.
+test("an owner can still ban and remove someone else", async () => {
+  const instance = await auth();
+  const target = await instance.api.createUser({
+    body: { email: "disposable@lifecycle.test", password: "correct-horse-battery", name: "Disposable", role: "runner" },
+    headers: ownerCookie,
+  });
+
+  const banned = await instance.api.banUser({ body: { userId: target.user.id }, headers: ownerCookie });
+  expect(banned.user.banned).toBe(true);
+
+  const removed = await instance.api.removeUser({ body: { userId: target.user.id }, headers: ownerCookie });
+  expect(removed.success).toBe(true);
 });

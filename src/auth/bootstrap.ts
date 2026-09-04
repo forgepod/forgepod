@@ -76,12 +76,41 @@ export function apiKeyMintGate() {
 }
 
 /**
- * `/admin/set-role` is Better Auth's own mounted route, a second surface
- * `app/admin/people/actions.ts` cannot reach: `setRoleAction`'s own refusal on a
- * self-target only guards the one caller that goes through it. A direct POST to
- * `/admin/set-role` with the owner's own id and `role: "runner"` still writes, and on a
- * single-owner install nothing can grant `user.manage` again afterward. Unlike deleting
- * the last user, this does not reopen claiming.
+ * Refusal per route, keyed by `ctx.path`. Each one names what was attempted rather than
+ * sharing one generic string, since an owner hitting this needs to know which action was
+ * refused.
+ */
+const SELF_TARGET_REFUSAL: Record<string, string> = {
+  "/admin/set-role":
+    "You cannot change your own role. Have another owner do it, or this install could end up with nobody able to administer it.",
+  "/admin/ban-user":
+    "You cannot ban yourself. There is no unban control in this app yet, so that would lock you out with no way back in.",
+  "/admin/remove-user":
+    "You cannot remove yourself. Deleting the last account reopens sign-up to whoever reaches this install next.",
+};
+
+/**
+ * `/admin/set-role`, `/admin/ban-user`, and `/admin/remove-user` are Better Auth's own
+ * mounted routes, a second surface `app/admin/people/actions.ts` cannot reach (there is
+ * no action for the latter two yet, so a direct POST is the only way to them today). A
+ * self-target on any of the three can strand the install:
+ *
+ * - `/admin/set-role`: on a single-owner install, nothing can grant `user.manage` again
+ *   afterward. This does not reopen claiming, unlike the other two.
+ * - `/admin/ban-user`: `roleOf` in `src/auth/actor.ts` returns null for a banned row, and
+ *   there is no unban control anywhere in this app, so a self-ban has no way back.
+ * - `/admin/remove-user`: deleting the last user makes `hasAnyUser` false, which reopens
+ *   sign-up, so the install goes back to being claimable by whoever reaches it next.
+ *
+ * Better Auth's own handlers for `/admin/ban-user` and `/admin/remove-user` already
+ * refuse a self-target ("You cannot ban yourself" / "You cannot remove yourself";
+ * confirmed against `node_modules/better-auth/dist/plugins/admin/routes.mjs` and by a
+ * live call through this app's own `auth()`), unlike `/admin/set-role`, which has no
+ * such check at all. All three are gated here anyway: this hook runs before Better
+ * Auth's own middleware even resolves the target, so the two that are already covered
+ * get an earlier, ForgePod-owned refusal instead of depending on a check pinned to one
+ * version of a third-party plugin. All three routes name the target with the same body
+ * field, `userId` (confirmed against the same source file).
  *
  * This hook runs before the admin plugin's own `adminMiddleware`, so the acting session
  * is not yet on `ctx.context.session` and is read with `getSessionFromCtx` instead, the
@@ -92,15 +121,14 @@ export function apiKeyMintGate() {
  * check already in `setRoleAction` redundant. That check stays anyway as defence in
  * depth, with a comment saying this middleware is the real gate.
  */
-export function selfDemoteGate() {
+export function selfTargetGate() {
   return createAuthMiddleware(async (ctx) => {
-    if (ctx.path !== "/admin/set-role") return;
+    const refusal = SELF_TARGET_REFUSAL[ctx.path];
+    if (!refusal) return;
     const session = await getSessionFromCtx(ctx);
     if (!session?.user) return;
     if (ctx.body?.userId === session.user.id) {
-      throw new APIError("FORBIDDEN", {
-        message: "You cannot change your own role. Have another owner do it, or this install could end up with nobody able to administer it.",
-      });
+      throw new APIError("FORBIDDEN", { message: refusal });
     }
   });
 }
@@ -114,11 +142,11 @@ export function selfDemoteGate() {
 export function authGate(db: Kysely<Schema>) {
   const signUp = signUpGate(db);
   const apiKey = apiKeyMintGate();
-  const selfDemote = selfDemoteGate();
+  const selfTarget = selfTargetGate();
   return createAuthMiddleware(async (ctx) => {
     await signUp(ctx);
     await apiKey(ctx);
-    await selfDemote(ctx);
+    await selfTarget(ctx);
   });
 }
 
