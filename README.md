@@ -257,6 +257,15 @@ disagree, so the claim is checked rather than asserted.
 Vector search is the feature that would break this first. That is why it belongs in a
 plugin carrying its own store.
 
+## Ownership
+
+The first person to open a fresh install claims it and becomes its owner, and sign-up
+closes behind them. Everyone after that is added by the owner from `/admin/people`,
+which is also where the owner issues and revokes API keys.
+
+`BETTER_AUTH_SECRET` signs every session and is required. Generate one with
+`openssl rand -base64 32`.
+
 ## Layout
 
 `src/` is the product and imports no web framework. The Next app under `app/` is a
