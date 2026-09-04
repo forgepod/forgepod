@@ -8,6 +8,7 @@ import { formatParams, formatReturn, type Schema } from "@/plugins/signature";
 import { pendingApprovals } from "@/plugins/approvals";
 import { loadPlugins } from "@/plugins/store";
 import { guard } from "@/auth/actor";
+import { can } from "@/auth/policy";
 import { Masthead } from "../../../masthead";
 import { PageHeader } from "../../../page-header";
 import { bindHookAction, deleteAgentAction, saveAgentAction, unbindHookAction } from "../actions";
@@ -44,6 +45,10 @@ export default async function AgentPage({
   // A binding survives a rescan, so it can outlive the tool it names. Saying so here is
   // the difference between an agent that lost a tool and an agent that lost one quietly.
   const unavailable = agent.tools.filter((t) => !t.available);
+  // `saveAgentAction` already refuses a role that cannot `agent.edit`, so this is not the
+  // security boundary. It is what keeps a runner from being shown a Save button that
+  // every click on would only come back refused.
+  const canEdit = can(verdict.actor, "agent.edit");
 
   return (
     <main className="sheet">
@@ -71,69 +76,76 @@ export default async function AgentPage({
         </div>
       ) : null}
 
-      <form action={saveAgentAction}>
-        <input type="hidden" name="id" value={agent.id} />
+      {canEdit ? (
+        <form action={saveAgentAction}>
+          <input type="hidden" name="id" value={agent.id} />
 
-        <div className="field-group">
-          <label htmlFor="model">Model</label>
-          <input id="model" name="model" defaultValue={agent.model} className="field" />
-        </div>
+          <div className="field-group">
+            <label htmlFor="model">Model</label>
+            <input id="model" name="model" defaultValue={agent.model} className="field" />
+          </div>
 
-        <div className="field-group">
-          <label htmlFor="systemPrompt">System prompt</label>
-          <textarea
-            id="systemPrompt"
-            name="systemPrompt"
-            defaultValue={agent.systemPrompt}
-            rows={8}
-            className="field"
-            placeholder="Tell the agent what it is for, and when to reach for a tool."
-          />
-        </div>
+          <div className="field-group">
+            <label htmlFor="systemPrompt">System prompt</label>
+            <textarea
+              id="systemPrompt"
+              name="systemPrompt"
+              defaultValue={agent.systemPrompt}
+              rows={8}
+              className="field"
+              placeholder="Tell the agent what it is for, and when to reach for a tool."
+            />
+          </div>
 
-        <div className="field-group">
-          <span className="label">Tools</span>
-          {plugins.length === 0 ? (
-            <p className="note">
-              No plugins scanned yet. <Link href="/admin/plugins">Scan them</Link> and every
-              tool they publish appears here.
-            </p>
-          ) : (
-            plugins.map((plugin) => (
-              <fieldset className="picker" key={plugin.name}>
-                <legend>{plugin.name}</legend>
-                {plugin.tools.map((tool) => {
-                  const value = `${plugin.name}::${tool.name}`;
-                  return (
-                    <label className="pick" key={value}>
-                      <input
-                        type="checkbox"
-                        name="tool"
-                        value={value}
-                        defaultChecked={bound.has(value)}
-                      />
-                      <span className="pick-body">
-                        <span className="pick-name">{tool.name}</span>
-                        <span className="pick-sig">
-                          ({formatParams(tool.inputSchema as Schema)}) →{" "}
-                          {formatReturn(tool.outputSchema as Schema | undefined)}
+          <div className="field-group">
+            <span className="label">Tools</span>
+            {plugins.length === 0 ? (
+              <p className="note">
+                No plugins scanned yet. <Link href="/admin/plugins">Scan them</Link> and every
+                tool they publish appears here.
+              </p>
+            ) : (
+              plugins.map((plugin) => (
+                <fieldset className="picker" key={plugin.name}>
+                  <legend>{plugin.name}</legend>
+                  {plugin.tools.map((tool) => {
+                    const value = `${plugin.name}::${tool.name}`;
+                    return (
+                      <label className="pick" key={value}>
+                        <input
+                          type="checkbox"
+                          name="tool"
+                          value={value}
+                          defaultChecked={bound.has(value)}
+                        />
+                        <span className="pick-body">
+                          <span className="pick-name">{tool.name}</span>
+                          <span className="pick-sig">
+                            ({formatParams(tool.inputSchema as Schema)}) →{" "}
+                            {formatReturn(tool.outputSchema as Schema | undefined)}
+                          </span>
                         </span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </fieldset>
-            ))
-          )}
-        </div>
+                      </label>
+                    );
+                  })}
+                </fieldset>
+              ))
+            )}
+          </div>
 
-        <div className="row">
-          <button type="submit" className="action">
-            Save
-          </button>
-          <span className="hint">Saving publishes a new version.</span>
-        </div>
-      </form>
+          <div className="row">
+            <button type="submit" className="action">
+              Save
+            </button>
+            <span className="hint">Saving publishes a new version.</span>
+          </div>
+        </form>
+      ) : (
+        <p className="note">
+          Model: <span className="mono">{agent.model}</span>. A {verdict.actor.role} cannot edit
+          this agent.
+        </p>
+      )}
 
       <Hooks
         agentId={agent.id}

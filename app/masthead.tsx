@@ -31,7 +31,7 @@ async function signOutAction(): Promise<void> {
  * through is worth the one extra lookup. A missing actor renders the wordmark and nav
  * with neither the people link nor sign out, rather than throwing.
  */
-export async function Masthead({ here }: { here: "plugins" | "agents" | "templates" }) {
+export async function Masthead({ here }: { here: "plugins" | "agents" | "templates" | "people" }) {
   const actor = await actorFrom(await headers());
 
   return (
@@ -47,7 +47,11 @@ export async function Masthead({ here }: { here: "plugins" | "agents" | "templat
         <Link href="/admin/templates" aria-current={here === "templates" ? "page" : undefined}>
           templates
         </Link>
-        {actor?.role === "owner" ? <Link href="/admin/people">people</Link> : null}
+        {actor?.role === "owner" ? (
+          <Link href="/admin/people" aria-current={here === "people" ? "page" : undefined}>
+            people
+          </Link>
+        ) : null}
       </nav>
       {actor ? (
         <form action={signOutAction}>
