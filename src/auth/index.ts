@@ -6,6 +6,7 @@ import { apiKey } from "@better-auth/api-key";
 import type { Kysely } from "kysely";
 import { database, databaseUrl, typeFor } from "../db";
 import type { Schema } from "../db/schema";
+import { claimOwnership, signUpGate } from "./bootstrap";
 
 const ac = createAccessControl(defaultStatements);
 
@@ -58,6 +59,8 @@ export function createAuth(
     baseURL: env.BETTER_AUTH_URL,
     database: { db, type },
     emailAndPassword: { enabled: true },
+    hooks: { before: signUpGate(db) },
+    databaseHooks: claimOwnership(db),
     plugins: [
       // `defaultRole` is what Better Auth falls back to whenever a user row's role
       // column is null or empty, and its own /admin/* middleware trusts that fallback
