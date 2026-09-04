@@ -13,7 +13,7 @@ import { auth } from "@/auth";
  * an `app/` file that is otherwise free to. Copied out directly instead: it is a handful
  * of lines, and pulling in the whole plugin for them buys nothing.
  */
-async function applySetCookie(headers: Headers | undefined): Promise<void> {
+export async function applySetCookie(headers: Headers | undefined): Promise<void> {
   const raw = headers?.get("set-cookie");
   if (!raw) return;
   const jar = await cookies();

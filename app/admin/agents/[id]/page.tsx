@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { headers } from "next/headers";
+import { notFound, redirect } from "next/navigation";
 import { database } from "@/db";
 import { HOOKS, isFilterHook, listBindings, type StoredBinding } from "@/agents/hooks";
 import { latestRun, loadAgent } from "@/agents/store";
 import { formatParams, formatReturn, type Schema } from "@/plugins/signature";
 import { pendingApprovals } from "@/plugins/approvals";
 import { loadPlugins } from "@/plugins/store";
+import { guard } from "@/auth/actor";
 import { Masthead } from "../../../masthead";
 import { PageHeader } from "../../../page-header";
 import { bindHookAction, deleteAgentAction, saveAgentAction, unbindHookAction } from "../actions";
@@ -21,6 +23,9 @@ export default async function AgentPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ saved?: string; hookError?: string }>;
 }) {
+  const verdict = await guard(await headers(), "admin.read");
+  if (!verdict.ok) redirect("/login");
+
   const { id } = await params;
   const { saved, hookError } = await searchParams;
 

@@ -1,6 +1,9 @@
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { database } from "@/db";
 import { checkTemplate, describeProblem, type Problem } from "@/templates/install";
 import { availableTemplates, type Available } from "@/templates/registry";
+import { guard } from "@/auth/actor";
 import { Masthead } from "../../masthead";
 import { PageHeader } from "../../page-header";
 import { install } from "./actions";
@@ -11,6 +14,9 @@ export const metadata = { title: "Templates" };
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export default async function TemplatesPage() {
+  const verdict = await guard(await headers(), "admin.read");
+  if (!verdict.ok) redirect("/login");
+
   const db = await database();
   const found = await availableTemplates();
 
