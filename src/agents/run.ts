@@ -124,6 +124,7 @@ export async function runAgent(args: {
       started_at: now(),
       ended_at: null,
       error: null,
+      actor_id: null,
     })
     .execute();
 

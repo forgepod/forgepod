@@ -31,6 +31,12 @@ export type AgentRow = {
   name: string;
   created_at: string;
   published_version_id: string | null;
+  /**
+   * Who created it. Null means the install owns it: rows that predate ownership have no
+   * honest answer, and guessing one would hand an agent to whoever happens to sign up
+   * first. Only the `owner` role may delete a null-owned agent.
+   */
+  owner_id: string | null;
 };
 
 export type AgentVersionRow = {
@@ -57,6 +63,8 @@ export type RunRow = {
   started_at: string;
   ended_at: string | null;
   error: string | null;
+  /** Who started it, through a session or through an API key. Null for runs that predate ownership. */
+  actor_id: string | null;
 };
 
 export type RunStepRow = {

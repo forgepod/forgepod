@@ -168,6 +168,7 @@ export async function createAgent(
         name: input.name,
         created_at: now,
         published_version_id: null,
+        owner_id: null,
       })
       .execute();
 

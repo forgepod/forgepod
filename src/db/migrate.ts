@@ -1,7 +1,30 @@
 import type { Kysely } from "kysely";
 import type { Schema } from "./schema";
 
-// Creates what is missing and nothing else, so it cannot alter an existing column.
+/**
+ * The one thing `migrate` could not do before: change a table that already exists. It
+ * reads the live column list first, so it is safe to run against an install that already
+ * has the column and against one that does not.
+ *
+ * This is not the versioned migration system the note below asks for, and it does not
+ * replace it. It only adds nullable columns, which is the one alteration that needs no
+ * backfill and cannot fail on existing rows.
+ */
+async function addColumnIfMissing(
+  db: Kysely<Schema>,
+  table: string,
+  column: string,
+  type: "text" | "integer",
+): Promise<void> {
+  const tables = await db.introspection.getTables();
+  const existing = tables.find((t) => t.name === table);
+  if (!existing) return;
+  if (existing.columns.some((c) => c.name === column)) return;
+
+  await db.schema.alterTable(table).addColumn(column, type).execute();
+}
+
+// Creates what is missing, plus the nullable columns added since, via addColumnIfMissing.
 // Replace with versioned migrations before the schema holds anyone else's data.
 export async function migrate(db: Kysely<Schema>): Promise<void> {
   await db.schema
@@ -45,6 +68,7 @@ export async function migrate(db: Kysely<Schema>): Promise<void> {
     .addColumn("name", "text", (c) => c.notNull())
     .addColumn("created_at", "text", (c) => c.notNull())
     .addColumn("published_version_id", "text")
+    .addColumn("owner_id", "text")
     .execute();
 
   await db.schema
@@ -92,6 +116,7 @@ export async function migrate(db: Kysely<Schema>): Promise<void> {
     .addColumn("started_at", "text", (c) => c.notNull())
     .addColumn("ended_at", "text")
     .addColumn("error", "text")
+    .addColumn("actor_id", "text")
     .execute();
 
   await db.schema
@@ -130,4 +155,7 @@ export async function migrate(db: Kysely<Schema>): Promise<void> {
     .addColumn("priority", "integer", (c) => c.notNull())
     .addColumn("created_at", "text", (c) => c.notNull())
     .execute();
+
+  await addColumnIfMissing(db, "agents", "owner_id", "text");
+  await addColumnIfMissing(db, "runs", "actor_id", "text");
 }
