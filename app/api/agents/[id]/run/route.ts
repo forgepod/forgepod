@@ -2,6 +2,7 @@ import { database } from "@/db";
 import { providerFromEnv } from "@/agents/providers";
 import { runAgent, runnableTools, type RunEvent } from "@/agents/run";
 import { loadAgent } from "@/agents/store";
+import { guard } from "@/auth/actor";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,11 @@ export const dynamic = "force-dynamic";
  * database as it goes, so closing the tab loses the live view and nothing else.
  */
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
+  // Before the agent lookup, on purpose: a 404 to an anonymous caller would tell them
+  // which agent ids are real.
+  const verdict = await guard(request.headers, "agent.run");
+  if (!verdict.ok) return new Response(verdict.reason, { status: verdict.status });
+
   const { id } = await ctx.params;
   const { input } = (await request.json()) as { input?: string };
 
@@ -37,6 +43,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
           tools: await runnableTools(db, agent.versionId),
           unavailable: agent.tools.filter((t) => !t.available),
           input: input ?? "",
+          actorId: verdict.actor.userId,
           onEvent: send,
         });
         send({ kind: "done", runId: outcome.runId, error: outcome.error });

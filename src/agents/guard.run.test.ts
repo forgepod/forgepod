@@ -181,6 +181,7 @@ test.skipIf(!python)(
       version: { id: versionId, agentId, slug: "guarded", model: "m", systemPrompt: "" },
       tools: await runnableTools(db, versionId),
       input: "write to /etc/passwd",
+      actorId: null,
     });
 
     const refusal = outcome.steps.find((s) => s.kind === "tool_result");

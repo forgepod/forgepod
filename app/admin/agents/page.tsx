@@ -1,7 +1,10 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { database } from "@/db";
 import { listAgents } from "@/agents/store";
 import { loadPlugins } from "@/plugins/store";
+import { guard } from "@/auth/actor";
 import { Masthead } from "../../masthead";
 import { PageHeader } from "../../page-header";
 import { createAgentAction } from "./actions";
@@ -11,7 +14,16 @@ export const metadata = { title: "Agents" };
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-export default async function AgentsPage() {
+export default async function AgentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ hookError?: string }>;
+}) {
+  const verdict = await guard(await headers(), "admin.read");
+  if (!verdict.ok) redirect("/login");
+
+  const { hookError } = await searchParams;
+
   const db = await database();
   const agents = await listAgents(db);
   const plugins = await loadPlugins(db);
@@ -36,6 +48,12 @@ export default async function AgentsPage() {
           No tools available yet. <Link href="/admin/plugins">Scan your plugins</Link> first,
           and an agent will have something to reach for.
         </p>
+      ) : null}
+
+      {hookError ? (
+        <div className="failure">
+          <p>{hookError}</p>
+        </div>
       ) : null}
 
       <form action={createAgentAction} className="row">

@@ -1,7 +1,10 @@
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { isTrusted } from "@/agents/hooks";
 import { database } from "@/db";
 import { formatParams, formatReturn, type Schema } from "@/plugins/signature";
 import { loadPlugins, type StoredPlugin, type StoredTool } from "@/plugins/store";
+import { guard } from "@/auth/actor";
 import { Masthead } from "../../masthead";
 import { PageHeader } from "../../page-header";
 import { rescan, setTrust } from "./actions";
@@ -22,6 +25,9 @@ function ago(iso: string): string {
 }
 
 export default async function PluginsPage() {
+  const verdict = await guard(await headers(), "admin.read");
+  if (!verdict.ok) redirect("/login");
+
   const db = await database();
   const plugins = await loadPlugins(db);
   const trusted = new Set(

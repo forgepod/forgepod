@@ -3,7 +3,7 @@ import { Kysely } from "kysely";
 import { BunSqliteDialect } from "../db/bun-sqlite";
 import { migrate } from "../db/migrate";
 import type { Schema } from "../db/schema";
-import { createAgent, defaultModel, loadAgent, publishVersion } from "./store";
+import { agentOwner, createAgent, defaultModel, loadAgent, publishVersion } from "./store";
 
 const at = "2026-08-24T10:00:00.000Z";
 
@@ -175,6 +175,21 @@ test("publishing again outside a transaction still increments the version", asyn
   expect(agent?.systemPrompt).toBe("second");
 
   await db.destroy();
+});
+
+test("a created agent remembers who created it, and an old one admits it has nobody", async () => {
+  const db = await freshDb();
+  try {
+    const mine = await createAgent(db, { name: "Mine", ownerId: "u1" });
+    expect(await agentOwner(db, mine)).toEqual({ ownerId: "u1" });
+
+    const orphan = await createAgent(db, { name: "Orphan" });
+    expect(await agentOwner(db, orphan)).toEqual({ ownerId: null });
+
+    expect(await agentOwner(db, "no-such-agent")).toBeNull();
+  } finally {
+    await db.destroy();
+  }
 });
 
 test("an install pointed at a gateway has to name the model its agents are born on", () => {

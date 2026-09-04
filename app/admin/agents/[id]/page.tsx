@@ -1,11 +1,14 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { headers } from "next/headers";
+import { notFound, redirect } from "next/navigation";
 import { database } from "@/db";
 import { HOOKS, isFilterHook, listBindings, type StoredBinding } from "@/agents/hooks";
-import { latestRun, loadAgent } from "@/agents/store";
+import { agentOwner, latestRun, loadAgent } from "@/agents/store";
 import { formatParams, formatReturn, type Schema } from "@/plugins/signature";
 import { pendingApprovals } from "@/plugins/approvals";
 import { loadPlugins } from "@/plugins/store";
+import { guard } from "@/auth/actor";
+import { can } from "@/auth/policy";
 import { Masthead } from "../../../masthead";
 import { PageHeader } from "../../../page-header";
 import { bindHookAction, deleteAgentAction, saveAgentAction, unbindHookAction } from "../actions";
@@ -21,6 +24,9 @@ export default async function AgentPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ saved?: string; hookError?: string }>;
 }) {
+  const verdict = await guard(await headers(), "admin.read");
+  if (!verdict.ok) redirect("/login");
+
   const { id } = await params;
   const { saved, hookError } = await searchParams;
 
@@ -39,6 +45,15 @@ export default async function AgentPage({
   // A binding survives a rescan, so it can outlive the tool it names. Saying so here is
   // the difference between an agent that lost a tool and an agent that lost one quietly.
   const unavailable = agent.tools.filter((t) => !t.available);
+  // `saveAgentAction`, `bindHookAction`/`unbindHookAction` and `deleteAgentAction` already
+  // refuse a role that cannot do these; none of this is the security boundary. It is what
+  // keeps a runner or editor from being shown controls that every click on would only
+  // come back refused, and that refusal stays exactly as it is regardless of what renders
+  // here.
+  const canEdit = can(verdict.actor, "agent.edit");
+  const canBindHooks = can(verdict.actor, "hook.bind");
+  const owner = await agentOwner(db, id);
+  const canDelete = can(verdict.actor, "agent.delete", owner ?? { ownerId: null });
 
   return (
     <main className="sheet">
@@ -66,75 +81,83 @@ export default async function AgentPage({
         </div>
       ) : null}
 
-      <form action={saveAgentAction}>
-        <input type="hidden" name="id" value={agent.id} />
+      {canEdit ? (
+        <form action={saveAgentAction}>
+          <input type="hidden" name="id" value={agent.id} />
 
-        <div className="field-group">
-          <label htmlFor="model">Model</label>
-          <input id="model" name="model" defaultValue={agent.model} className="field" />
-        </div>
+          <div className="field-group">
+            <label htmlFor="model">Model</label>
+            <input id="model" name="model" defaultValue={agent.model} className="field" />
+          </div>
 
-        <div className="field-group">
-          <label htmlFor="systemPrompt">System prompt</label>
-          <textarea
-            id="systemPrompt"
-            name="systemPrompt"
-            defaultValue={agent.systemPrompt}
-            rows={8}
-            className="field"
-            placeholder="Tell the agent what it is for, and when to reach for a tool."
-          />
-        </div>
+          <div className="field-group">
+            <label htmlFor="systemPrompt">System prompt</label>
+            <textarea
+              id="systemPrompt"
+              name="systemPrompt"
+              defaultValue={agent.systemPrompt}
+              rows={8}
+              className="field"
+              placeholder="Tell the agent what it is for, and when to reach for a tool."
+            />
+          </div>
 
-        <div className="field-group">
-          <span className="label">Tools</span>
-          {plugins.length === 0 ? (
-            <p className="note">
-              No plugins scanned yet. <Link href="/admin/plugins">Scan them</Link> and every
-              tool they publish appears here.
-            </p>
-          ) : (
-            plugins.map((plugin) => (
-              <fieldset className="picker" key={plugin.name}>
-                <legend>{plugin.name}</legend>
-                {plugin.tools.map((tool) => {
-                  const value = `${plugin.name}::${tool.name}`;
-                  return (
-                    <label className="pick" key={value}>
-                      <input
-                        type="checkbox"
-                        name="tool"
-                        value={value}
-                        defaultChecked={bound.has(value)}
-                      />
-                      <span className="pick-body">
-                        <span className="pick-name">{tool.name}</span>
-                        <span className="pick-sig">
-                          ({formatParams(tool.inputSchema as Schema)}) →{" "}
-                          {formatReturn(tool.outputSchema as Schema | undefined)}
+          <div className="field-group">
+            <span className="label">Tools</span>
+            {plugins.length === 0 ? (
+              <p className="note">
+                No plugins scanned yet. <Link href="/admin/plugins">Scan them</Link> and every
+                tool they publish appears here.
+              </p>
+            ) : (
+              plugins.map((plugin) => (
+                <fieldset className="picker" key={plugin.name}>
+                  <legend>{plugin.name}</legend>
+                  {plugin.tools.map((tool) => {
+                    const value = `${plugin.name}::${tool.name}`;
+                    return (
+                      <label className="pick" key={value}>
+                        <input
+                          type="checkbox"
+                          name="tool"
+                          value={value}
+                          defaultChecked={bound.has(value)}
+                        />
+                        <span className="pick-body">
+                          <span className="pick-name">{tool.name}</span>
+                          <span className="pick-sig">
+                            ({formatParams(tool.inputSchema as Schema)}) →{" "}
+                            {formatReturn(tool.outputSchema as Schema | undefined)}
+                          </span>
                         </span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </fieldset>
-            ))
-          )}
-        </div>
+                      </label>
+                    );
+                  })}
+                </fieldset>
+              ))
+            )}
+          </div>
 
-        <div className="row">
-          <button type="submit" className="action">
-            Save
-          </button>
-          <span className="hint">Saving publishes a new version.</span>
-        </div>
-      </form>
+          <div className="row">
+            <button type="submit" className="action">
+              Save
+            </button>
+            <span className="hint">Saving publishes a new version.</span>
+          </div>
+        </form>
+      ) : (
+        <p className="note">
+          Model: <span className="mono">{agent.model}</span>. A {verdict.actor.role} cannot edit
+          this agent.
+        </p>
+      )}
 
       <Hooks
         agentId={agent.id}
         bindings={bindings}
         handlers={plugins.flatMap((p) => p.tools.map((t) => `${p.name}::${t.name}`))}
         failure={hookError}
+        canBind={canBindHooks}
       />
 
       <RunPanel
@@ -144,13 +167,15 @@ export default async function AgentPage({
         hasTools={agent.tools.length > 0}
       />
 
-      <form action={deleteAgentAction} className="danger-zone">
-        <input type="hidden" name="id" value={agent.id} />
-        <ConfirmButton question={`Delete ${agent.name} and every run it recorded?`}>
-          Delete agent
-        </ConfirmButton>
-        <span className="hint">Its versions and run history go with it.</span>
-      </form>
+      {canDelete ? (
+        <form action={deleteAgentAction} className="danger-zone">
+          <input type="hidden" name="id" value={agent.id} />
+          <ConfirmButton question={`Delete ${agent.name} and every run it recorded?`}>
+            Delete agent
+          </ConfirmButton>
+          <span className="hint">Its versions and run history go with it.</span>
+        </form>
+      ) : null}
     </main>
   );
 }
@@ -165,11 +190,13 @@ function Hooks({
   bindings,
   handlers,
   failure,
+  canBind,
 }: {
   agentId: string;
   bindings: StoredBinding[];
   handlers: string[];
   failure?: string;
+  canBind: boolean;
 }) {
   return (
     <section className="field-group">
@@ -189,25 +216,37 @@ function Hooks({
       {bindings.length === 0 ? (
         <p className="note">Nothing bound. Runs go straight through.</p>
       ) : (
-        bindings.map((binding) => (
-          <form action={unbindHookAction} className="row" key={binding.id}>
-            <input type="hidden" name="id" value={agentId} />
-            <input type="hidden" name="binding" value={binding.id} />
-            <span className="mono">
-              {binding.hook} → {binding.pluginName}.{binding.toolName}
-            </span>
-            <span className="hint">
-              {isFilterHook(binding.hook) ? "filter" : "action"}, priority {binding.priority}
-              {binding.agentId === null ? ", every agent" : ""}
-            </span>
-            <button type="submit" className="action-quiet">
-              Unbind
-            </button>
-          </form>
-        ))
+        bindings.map((binding) =>
+          canBind ? (
+            <form action={unbindHookAction} className="row" key={binding.id}>
+              <input type="hidden" name="id" value={agentId} />
+              <input type="hidden" name="binding" value={binding.id} />
+              <span className="mono">
+                {binding.hook} → {binding.pluginName}.{binding.toolName}
+              </span>
+              <span className="hint">
+                {isFilterHook(binding.hook) ? "filter" : "action"}, priority {binding.priority}
+                {binding.agentId === null ? ", every agent" : ""}
+              </span>
+              <button type="submit" className="action-quiet">
+                Unbind
+              </button>
+            </form>
+          ) : (
+            <div className="row" key={binding.id}>
+              <span className="mono">
+                {binding.hook} → {binding.pluginName}.{binding.toolName}
+              </span>
+              <span className="hint">
+                {isFilterHook(binding.hook) ? "filter" : "action"}, priority {binding.priority}
+                {binding.agentId === null ? ", every agent" : ""}
+              </span>
+            </div>
+          ),
+        )
       )}
 
-      {handlers.length === 0 ? null : (
+      {handlers.length === 0 || !canBind ? null : (
         <form action={bindHookAction} className="row">
           <input type="hidden" name="id" value={agentId} />
           <select name="hook" className="field" defaultValue="run.after">

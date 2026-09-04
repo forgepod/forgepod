@@ -66,7 +66,7 @@ cp .env.example .env   # every setting the server reads, with what each one does
 bun install
 bun run plugin:setup   # a venv per plugin, one time
 bun run plugin:image   # build each plugin's image, one time
-bun test
+bun run test
 bun run dev            # admin at http://localhost:3000/admin/plugins
 ```
 
@@ -256,6 +256,15 @@ disagree, so the claim is checked rather than asserted.
 
 Vector search is the feature that would break this first. That is why it belongs in a
 plugin carrying its own store.
+
+## Ownership
+
+The first person to open a fresh install claims it and becomes its owner, and sign-up
+closes behind them. Everyone after that is added by the owner from `/admin/people`,
+which is also where the owner issues and revokes API keys.
+
+`BETTER_AUTH_SECRET` signs every session and is required. Generate one with
+`openssl rand -base64 32`.
 
 ## Layout
 

@@ -163,7 +163,14 @@ export async function writeAgent(
 
   await exec
     .insertInto("agents")
-    .values({ id, slug: agent.slug, name: agent.name, created_at: now, published_version_id: null })
+    .values({
+      id,
+      slug: agent.slug,
+      name: agent.name,
+      created_at: now,
+      published_version_id: null,
+      owner_id: null,
+    })
     .execute();
 
   const written = authored(agent);

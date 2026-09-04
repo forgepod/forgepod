@@ -7,14 +7,16 @@
     "build": "bun --bun next build",
     "start": "bun --bun next start",
     "typecheck": "tsc --noEmit",
-    "test": "bun test",
+    "test": "bun test --isolate",
     "plugin:setup": "for d in plugins/*/; do if [ -f \"$d/requirements.txt\" ]; then python3 -m venv \"$d.venv\" && \"$d.venv/bin/pip\" install -q -r \"$d/requirements.txt\"; fi; done",
     "plugin:image": "bun scripts/plugin-image.ts",
     "template": "bun scripts/template.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
+    "@better-auth/api-key": "1.7.2",
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "better-auth": "1.7.2",
     "kysely": "^0.29.5",
     "next": "^16.3.2",
     "openai": "^7.5.0",
